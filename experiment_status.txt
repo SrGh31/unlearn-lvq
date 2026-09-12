@@ -1,0 +1,9 @@
+Completed ones with all relevant data saved
+1. Banking Random
+2. Banking Outlier
+3. Surgical Outlier
+4. Diabetes Outlier
+5. Diabetes Random
+6. Surgical Random
+7. Adult Outlier
+8. Adult Random 
