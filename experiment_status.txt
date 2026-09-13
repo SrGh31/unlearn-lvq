@@ -1,9 +1,32 @@
 Completed ones with all relevant data saved
-1. Banking Random
-2. Banking Outlier
-3. Surgical Outlier
-4. Diabetes Outlier
+A. LBFGS
+1. Diabetes Random
+2. Surgical Random
+3. Banking Random
+4. Adult Random
+5. Diabetes Outlier
+6. Criteo outliers with nprots=[1,2,3] did not work out, as no outlier found
+7. Criteo Random [Only 1 iteration per nopt]
+8. Adult Outliers with nprots=[1,2,3] did not work out as no outlier found
+9. Surgical Outliers with nprots=[1,2,3] did not work out as no outlier found
+10. Banking Outliers with nprots=[1,2,3] did not work out as no outlier found
+
+B.SGD:
+1. Diabetes Random
+2. Surgical Random
+3. Banking Random
+4. Adult Random
+
+C. WGD:
+1. Diabetes Outlier
+2. Surgical Outlier
+3. Banking Outlier
+4. Adult Outlier
 5. Diabetes Random
 6. Surgical Random
-7. Adult Outlier
-8. Adult Random 
+7. Banking Random
+8. Adult Random
+9. Criteo Outlier
+10. Criteo Random 
+
+

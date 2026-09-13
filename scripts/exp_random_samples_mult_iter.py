@@ -43,10 +43,10 @@ else:
 # Model params to compare; 
 # Training original model
 dist_name, activation_type="squared-euclidean", "identity"
-solver_type, solver_params="wgd", {"max_runs": 5, "step_size": np.array([0.05]),  "k": 3,
+solver_type, solver_params="lbfgs", {"max_runs": 5, "step_size": np.array([0.05]),  "k": 3,
 }
 print(dname, ' random ', solver_type)
-for nprots in [1]:
+for nprots in [3]:
     nprots_per_class=nprots
     if solver_type in ['sgd', 'wgd']:
         glvq=model = GLVQ(
@@ -133,13 +133,13 @@ for nprots in [1]:
          #   print('n=%d, Elapsed time unlearn diff=%3f-%3f'%(n, elapsed_retrain,elapsed_untrain))
             #########################################
             elapsed_untrain=(time.time()-st_un)/60
-            print('n=%d/%d, Elapsed time diff=retrain (%3f) -unlearn (%3f)'%(n, nopts[-1], elapsed_retrain,elapsed_untrain))
+            print('n=%d/%d, Elapsed time diff=retrain (%3f) -unlearn (%3f)'%(n, nopts[-1], elapsed_retrain, elapsed_untrain))
             #########################################
             dev02, max_dev_indx02=compare_fidelity_glvq(glvq, unlearned_model)
             print('After unlearning: Deviation between original and unlearned models:', dev02)
             dev12, max_dev_indx12=compare_fidelity_glvq(glvq_partial1,unlearned_model)
             print('After unlearning: Deviation between retrained and unlearned models:', dev12)
-            ###############################################################################################################
+           #######################################################################################
             cratio_uo_ur=dev02/dev12
             print('Dev(prots from original and unlearned models)/Dev(prots from retrained and unlearned models)=%0.03f'%cratio_uo_ur)
             ###############################################################################
@@ -172,13 +172,13 @@ for nprots in [1]:
             else:
                 temp= pd.DataFrame.from_dict(data=compare_dict, orient='index').T
                 compare_df=pd.concat([compare_df, temp])
-            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_%s_nprot%d.csv'%(dname, dname,solver_type, nprots_per_class), index=False, sep='\t')
+            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_%s_nprot%d0.csv'%(dname, dname,solver_type, nprots_per_class), index=False, sep='\t')
         retrained_n[cint]={'n':n, 'models':retrained_iter}
         unlearned_n[cint]={'n':n, 'models': unlearned_iter}
         cint+=1
             
     model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-    picklefilename='%s/%s/%s_random_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    picklefilename='%s/%s/%s_random_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
     with open(picklefilename, 'wb') as file:
         pickle.dump(model_sets, file)
     #compare_df.applymap(lambda x: '%.3f' % x)

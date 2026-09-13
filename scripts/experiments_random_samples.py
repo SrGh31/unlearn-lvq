@@ -102,8 +102,8 @@ for n in nopts:
         #####################################
         dev01, max_dev_indx01=compare_fidelity_glvq(glvq, glvq_partial1)
         print('After retraining: Deviation between original and retrained models:', dev01)
-        ###############################################################################################################
-        #Unlearning
+        #######################################################################################
+        # Unlearning
         #########################################
         if solver_type=='lbfgs':
             data_dict={'zX_M1':zXretrain}
@@ -114,9 +114,6 @@ for n in nopts:
                 glvq_copy.unlearn_rate_=grad_step
                 updated_model_attempt=unlearn_sample_effect_glvq(
                     glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, training_info)
-                # Compare original (0) vs retrained (1)
-               # perf02_train=compare_perf(glvq, updated_model_attempt, data_dict, relearn_labs)
-               # perf12_train=compare_perf(glvq_partial1, updated_model_attempt, data_dict, relearn_labs)
                 perf123=compare_perf_3(glvq, glvq_partial1, updated_model_attempt, data_dict, relearn_labs)
                 # ideal scenario:
                 # accuracy of retrained model (M1) should be less than that of unlearned model (M2) 
@@ -128,11 +125,10 @@ for n in nopts:
         # Unlearning of sample effects
         st_un=time.time()
         unlearned_model=unlearn_sample_effect_glvq(
-                    glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, training_info)        
+                    glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, training_info)
         elapsed_untrain=(time.time()-st_un)/60
         #########################################
         unlearned_iter[iter]={'model': unlearned_model, 'unlearn_indices': unlearn_indices }
-     #   print('n=%d, Elapsed time unlearn diff=%3f-%3f'%(n, elapsed_retrain,elapsed_untrain))
         #########################################
         elapsed_untrain=(time.time()-st_un)/60
         print('n=%d/%d, Elapsed time diff=retrain (%3f) -unlearn (%3f)'%(n, nopts[-1], elapsed_retrain,elapsed_untrain))

@@ -26,7 +26,7 @@ from utils import samples_unlearn_outliers, relearn_unlearn_samples
 from experiment_utils import dataset_health
 #dname='breastcancer'
 dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo']
-dname=dname_all[4]
+dname=dname_all[2]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -35,10 +35,10 @@ zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
 # * nprots_per_class=[1,2,3]
 # Training original model
 dist_name, activation_type="squared-euclidean", "identity"
-solver_type, solver_params="wgd", {"max_runs": 5, "step_size": np.array([0.05]),  "k": 3,
+solver_type, solver_params="lbfgs", {"max_runs": 5, "step_size": np.array([0.05]),  "k": 3,
                                   }
 print(dname, ' outlier ', solver_type)
-for nprot in [1]:#, 2, 3]:
+for nprot in [1, 2, 3]:
     nprots_per_class=nprot
     cint=0
     if solver_type in ['sgd', 'wgd']:
