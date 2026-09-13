@@ -69,7 +69,10 @@ def unlearn_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, unlearn_data:pd.Da
                 unlearn_grad_diff=np.zeros(np.shape(prot))
             unlearn_grad_diff=np.reshape(unlearn_grad_diff, (1,model.prototypes_.shape[1]))
             unlearn_grad_same=np.reshape(unlearn_grad_same, (1,model.prototypes_.shape[1]))
-            updated_prots[nprot,:]=updated_prots[nprot,:]+(unlearn_grad_diff-unlearn_grad_same)*model.get_params()['solver_params']['step_size'][0]
+            if model.get_params()['solver_type'] in ["sgd", "wgd"]:
+                updated_prots[nprot,:]=updated_prots[nprot,:]+(unlearn_grad_diff-unlearn_grad_same)*model.get_params()['solver_params']['step_size'][0]
+            else:
+                updated_prots[nprot,:]=updated_prots[nprot,:]+(unlearn_grad_diff-unlearn_grad_same)*model.unlearn_rate_
         model.set_prototypes(updated_prots)
         model.normalize_variables(model.prototypes_)
     return model
