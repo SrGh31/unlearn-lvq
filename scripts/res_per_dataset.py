@@ -34,7 +34,7 @@ def combine_tabs_per_dataset(dname, exp_type):
     resdf.rename(columns={'n':'num_unlearned_samples', 'num_prot': 'prot_per_class'}, inplace=True)
     print(resdf.head(5))
     respath='%s/%s_%s_unlearning.csv'%(srcpath, dname, exp_type)
-    resdf.to_csv(respath, sep='\t')
+    resdf.to_csv(respath, sep='\t', index=False)
     return resdf
 
 

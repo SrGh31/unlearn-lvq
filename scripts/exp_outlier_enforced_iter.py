@@ -20,13 +20,13 @@ resultspath='/'.join(parts)+'/results/'
 modelpath='/'.join(parts)+'/models/'
 from experiment_utils import data_normalization, data_norm_log
 from unlearning.unlearn_eval import *
-from unlearning.unlearn_lvq import unlearn_sample_effect_glvq
-from utils import samples_unlearn_outliers, relearn_unlearn_samples
+from unlearning.unlearn_lvq import unlearn_sample_effect_glvq, unlearn_relearn_sample_glvq
+from utils import samples_unlearn_outliers, relearn_unlearn_samples, samples_enforce_random
 # || Dataset name: Breast cancer data ||
 from experiment_utils import dataset_health
 #dname='breastcancer'
 dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo']
-dname=dname_all[2]
+dname=dname_all[1]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -94,6 +94,7 @@ for nprot in [1, 2, 3]:
                      'relearn_indices':relearn_indices, 'relearn_samples':relearn_samples}
         unlearn_indices,relearn_indices=outlier_learn_set['unlearn_indices'], outlier_learn_set['relearn_indices']
         unlearn_samples,relearn_samples=outlier_learn_set['unlearn_samples'], outlier_learn_set['relearn_samples']
+        enforce_indices, enforce_samples=samples_enforce_random(Xtrain, unlearn_indices,Ytrain)
         unlearn_labs,relearn_labs=Ytrain[unlearn_indices], Ytrain[relearn_indices]
         zXretrain=zXtrain.iloc[relearn_indices].copy()
         #Retraining 
@@ -122,27 +123,25 @@ for nprot in [1, 2, 3]:
             print('Appropriate step size for gradient ascent with %s is being searched using relearning set'%solver_type)
             for idx, grad_step in enumerate(grad_step_sizes):
                 glvq_copy.unlearn_rate_=grad_step
-                updated_model_attempt=unlearn_sample_effect_glvq(
-                        glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, training_info)
+                updated_model_attempt=unlearn_relearn_sample_glvq(glvq_copy, zXtrain.iloc[unlearn_indices], 
+                            unlearn_labs, zXtrain.iloc[enforce_indices], Ytrain[enforce_indices],training_info)
+               # updated_model_attempt.normalize_variables(updated_model_attempt.prototypes_)
                 # Compare original (0) vs retrained (1)
                 perf123=compare_perf_3(glvq, glvq_partial1, updated_model_attempt, data_dict, relearn_labs)
                 # ideal scenario: accuracy of retrained model (M1) should be less than that of unlearned model (M2) 
                 acc_diff[idx]=perf123['M0_Bacc']-perf123['M2_Bacc'] 
                 glvq_copy.prototypes_=glvq_copy.secure_prototypes_.copy()
             sorted_idx=np.argsort(acc_diff)
-    #       print('Appropriate step size for gradient ascent with %s is %.3f'%(solver_type, grad_step_sizes[sorted_idx[0]]))
             glvq_copy.unlearn_rate_=grad_step_sizes[sorted_idx[0]]
         # Unlearning of sample effects
         st_un=time.time()
-        unlearned_model=unlearn_sample_effect_glvq(glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, training_info)
-        #unlearned_iter[iter]={'model': unlearned_model, 'unlearn_indices': unlearn_indices }
+        unlearned_model=unlearn_relearn_sample_glvq(glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, 
+                                                     zXtrain.iloc[enforce_indices], Ytrain[enforce_indices],training_info)
         elapsed_untrain=(time.time()-st_un)/60
-    #       print('n=%d, Elapsed time diff=%3f-%3f'%(len(unlearn_indices), elapsed_retrain,elapsed_untrain))
         #########################################
         dev02, max_dev_indx02=compare_fidelity_glvq(glvq, unlearned_model)
-    #        print('After unlearning: Deviation between original and unlearned models:', dev02)
         dev12, max_dev_indx12=compare_fidelity_glvq(glvq_partial1, unlearned_model)
-    #        print('After unlearning: Deviation between retrained and unlearned models:', dev12)
+        print('After unlearning: Deviation between original and unlearned models:', dev02)
         ###############################################################################################################
         cratio_uo_ur=dev02/dev12
         print('Dev(prots from original and unlearned models)/Dev(prots from retrained and unlearned models)=%0.03f'%cratio_uo_ur)
@@ -181,12 +180,11 @@ for nprot in [1, 2, 3]:
             compare_df=pd.concat([compare_df, temp])
             cint+=1
         if cint>0:
-            tab_filename='%s%s/%s_outlier_unlearn_%s_nprot%d.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
-    #        print(tab_filename)
+            tab_filename='%s%s/%s_outlier_unlearn_enforce_%s_nprot%d.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
         compare_df.to_csv(tab_filename, index=False, sep='\t')
     if cint>0:
         model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-        picklefilename='%s/%s/%s_outlier_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+        picklefilename='%s/%s/%s_outlier_unlearn_enforce_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
         with open(picklefilename, 'wb') as file:
             pickle.dump(model_sets, file)
     print(dname, ' Outlier ', solver_type, ' Num prots: ', nprots_per_class)

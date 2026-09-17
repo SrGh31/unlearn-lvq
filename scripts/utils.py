@@ -2,6 +2,7 @@ import numpy as np
 import os, sys
 import sklvq
 import pandas as pd
+import itertools
 
 parts=os.getcwd().split('/')
 if parts[-1]=='notebooks':
@@ -56,8 +57,11 @@ def samples_unlearn_random(trainset:pd.DataFrame,trainlabs:list, n:int=20,save_s
     unlearn_indices=np.random.randint(0, trainset.shape[0], size=n).tolist()
     unlearn_samples=trainset.iloc[unlearn_indices].copy()
     relearn_indices, relearn_samples=relearn_unlearn_samples(trainset, unlearn_indices,save_samples)
+ #   enforce_indices, enforce_samples=samples_enforce_random(trainset, unlearn_indices,trainlabs)
     unlearn_set={'unlearn_indices':unlearn_indices, 'unlearn_samples':unlearn_samples, 'unlearn_labs':trainlabs[unlearn_indices],
-                 'relearn_indices':relearn_indices, 'relearn_samples':relearn_samples, 'relearn_labs':trainlabs[relearn_indices]}
+                 'relearn_indices':relearn_indices, 'relearn_samples':relearn_samples, 'relearn_labs':trainlabs[relearn_indices],
+                # 'enforce_indices':enforce_indices, 'enforce_samples':enforce_samples, 'enforce_labs':trainlabs[relearn_indices]
+                }
     if save_samples==1:
         unlearn_samples.insert(0,'og_index',unlearn_indices)
         unlearn_samples.to_csv(datapath+'unlearn_random_samples_%d.csv'%n, index=False)
@@ -83,6 +87,39 @@ def samples_unlearn_outliers(trainset:pd.DataFrame,model:sklvq.models, thresh:fl
         unlearn_samples.to_csv(datapath+'unlearn_outlier_samples.csv', index=False)
     return unlearn_set
 
+
+def samples_enforce_random(trainset:pd.DataFrame, unlearn_indices:list, trainlabs:list):
+    """
+    """
+    nlabs=np.unique(trainlabs[unlearn_indices])
+    if len(unlearn_indices)==1:
+        searchset_indices=np.setdiff1d(list(np.where(trainlabs==trainlabs[unlearn_indices])[0]), unlearn_indices)
+        #trainset.loc[trainlabs==trainlabs[unlearn_indices]].copy()
+        enforce_indices=searchset_indices[np.random.randint(0, len(searchset_indices), size=1).tolist()]
+    elif len(nlabs)==1:
+        n=len(unlearn_indices)
+        searchset_indices=np.setdiff1d(list(np.where(trainlabs==nlabs)[0]), unlearn_indices)
+        within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
+        enforce_indices=searchset_indices[within_class_sel]
+    else:
+        #intializing container to store indices to enforce
+        enforce_indices=[]
+        for nlab in nlabs:
+            n=np.sum(trainlabs[unlearn_indices]==nlab)
+            searchset_indices=np.setdiff1d(list(np.where(trainlabs==nlab)[0]), unlearn_indices)
+            if len(searchset_indices)==1:
+                within_class_sel=list(np.random.randint(0, len(searchset_indices), size=1))
+            elif len(searchset_indices)<=n:
+                n=len(searchset_indices)
+                within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
+            else:
+                within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
+            perlab_indices=searchset_indices[within_class_sel]#.tolist()        
+            enforce_indices.append(perlab_indices)
+        enforce_indices=list(itertools.chain(*enforce_indices))
+    return enforce_indices, trainset.iloc[enforce_indices]
+    
+    
 
 def relearn_unlearn_samples(trainset:pd.DataFrame, unlearn_indices,save_samples:int=0):
     """

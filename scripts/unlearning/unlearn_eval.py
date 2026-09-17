@@ -11,7 +11,7 @@ def compare_fidelity_glvq(model1, model2):
     and returns the root mean squared error of their differences, and the 
     sorted indices of the features based on the absolute deviations
     """
-    deviation=np.round(rmse(model1.prototypes_,model2.prototypes_), 5)
+    deviation=rmse(model1.prototypes_,model2.prototypes_)
     max_dev_indx=np.argsort(np.abs(model1.prototypes_-model2.prototypes_), axis=1)
     return deviation, max_dev_indx
 

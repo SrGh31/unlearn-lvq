@@ -9,7 +9,6 @@ from datetime import date
 import time
 from collections import Counter
 from sklvq import GLVQ
-from sklearn.metrics.cluster import normalized_mutual_info_score, adjusted_mutual_info_score
 import sklvq
 parts=os.getcwd().split('/')#[:-1]
 if (parts[-1]=='notebooks') |((parts[-1]=='scripts')):
@@ -19,16 +18,16 @@ sys.path.append(code_path)
 
 resultspath='/'.join(parts)+'/results/'
 modelpath='/'.join(parts)+'/models/'
-from experiment_utils import data_normalization, data_norm_log
+from experiment_utils import data_norm_log
 from unlearning.unlearn_eval import *
-from unlearning.unlearn_lvq import unlearn_sample_effect_glvq
-from utils import samples_unlearn_random
+from unlearning.unlearn_lvq import unlearn_relearn_sample_glvq
+from utils import samples_unlearn_random, samples_enforce_random
 # || Dataset name: Breast cancer data ||
 from experiment_utils import dataset_health
 #dname='breastcancer'
 #'adult' #'surgical' # 'diabetes'
 dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo']
-dname=dname_all[4]
+dname=dname_all[3]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -66,6 +65,8 @@ for nprots in [1,2,3]:
 
     glvq.fit(zXtrain, Ytrain)
     glvq_copy.fit(zXtrain, Ytrain)
+    glvq.normalize_variables(glvq.prototypes_)
+    glvq_copy.normalize_variables(glvq_copy.prototypes_)
     training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain)}
     ########################################################################################
     # Unlearning parameters to compare
@@ -80,16 +81,18 @@ for nprots in [1,2,3]:
         dev00, max_dev_indx0=compare_fidelity_glvq(glvq, glvq_copy)
         print('Before unlearning: Deviation between original model and its copy:', dev00)
         retrained_iter, unlearned_iter={},{}
-        for iter in [0,1,2,3,4]:
+        for iter in [0,1,2]:
             random_learn_set=samples_unlearn_random(Xtrain, Ytrain, n,0) 
             if iter>0:
                 glvq_copy.prototypes_=glvq_copy.secure_prototypes_.copy()
             unlearn_indices,relearn_indices=random_learn_set['unlearn_indices'], random_learn_set['relearn_indices']
             unlearn_samples,relearn_samples=random_learn_set['unlearn_samples'], random_learn_set['relearn_samples']
             unlearn_labs,relearn_labs=random_learn_set['unlearn_labs'], random_learn_set['relearn_labs']
+            enforce_indices, enforce_samples=samples_enforce_random(Xtrain, unlearn_indices,Ytrain)
             zXretrain, zXretest=data_norm_log(Xtrain.iloc[relearn_indices], Xtest)
             #Retraining 
             st=time.time()
+            print(Counter(Ytrain))
             ####################################
             if solver_type in ['sgd', 'wgd']:
                 glvq_partial1=GLVQ(distance_type=dist_name, activation_type=activation_type, prototype_n_per_class=nprots_per_class,
@@ -98,6 +101,7 @@ for nprots in [1,2,3]:
                 glvq_partial1=GLVQ(distance_type=dist_name, activation_type=activation_type, prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type)
             glvq_partial1.fit(zXretrain, relearn_labs)
+            glvq_partial1.normalize_variables(glvq_partial1.prototypes_)
             retrained_iter[iter]={'model': glvq_partial1, 'retrain_indices': relearn_indices }
             #####################################
             elapsed_retrain=(time.time()-st)/60
@@ -114,8 +118,10 @@ for nprots in [1,2,3]:
                 print('Appropriate step size for gradient ascent with %s is being searched using relearning set'%solver_type)
                 for idx, grad_step in enumerate(grad_step_sizes):
                     glvq_copy.unlearn_rate_=grad_step
-                    updated_model_attempt=unlearn_sample_effect_glvq(
-                        glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, training_info)
+                    updated_model_attempt=unlearn_relearn_sample_glvq(
+                        glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, zXtrain.iloc[enforce_indices],
+                        Ytrain[enforce_indices], training_info)
+                  #  updated_model_attempt.normalize_variables(updated_model_attempt.prototypes_)
                     perf123=compare_perf_3(glvq, glvq_partial1, updated_model_attempt, data_dict, relearn_labs)
                     # ideal scenario:
                     # accuracy of retrained model (M1) should be less than that of unlearned model (M2) 
@@ -126,11 +132,12 @@ for nprots in [1,2,3]:
                 glvq_copy.unlearn_rate_=grad_step_sizes[sorted_idx[0]]
             # Unlearning of sample effects
             st_un=time.time()
-            unlearned_model=unlearn_sample_effect_glvq(
-                        glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, training_info)        
+            unlearned_model=unlearn_relearn_sample_glvq(
+                        glvq_copy, zXtrain.iloc[unlearn_indices], unlearn_labs, zXtrain.iloc[enforce_indices], Ytrain[enforce_indices], 
+                training_info)        
             elapsed_untrain=(time.time()-st_un)/60
             #########################################
-            unlearned_iter[iter]={'model': unlearned_model, 'unlearn_indices': unlearn_indices }
+            unlearned_iter[iter]={'model': unlearned_model, 'unlearn_indices': unlearn_indices, 'enforced_indices':enforce_indices }
          #   print('n=%d, Elapsed time unlearn diff=%3f-%3f'%(n, elapsed_retrain,elapsed_untrain))
             #########################################
             elapsed_untrain=(time.time()-st_un)/60
@@ -173,13 +180,14 @@ for nprots in [1,2,3]:
             else:
                 temp= pd.DataFrame.from_dict(data=compare_dict, orient='index').T
                 compare_df=pd.concat([compare_df, temp])
-            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_%s_nprot%d0.csv'%(dname, dname,solver_type, nprots_per_class), index=False, sep='\t')
+            tab_filename='%s%s/%s_random_unlearn_enforce_%s_nprot%d.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
+            compare_df.to_csv(tab_filename, index=False, sep='\t')
         retrained_n[cint]={'n':n, 'models':retrained_iter}
         unlearned_n[cint]={'n':n, 'models': unlearned_iter}
         cint+=1
-            
+            #unlearn_enforce
     model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-    picklefilename='%s/%s/%s_random_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    picklefilename='%s/%s/%s_random_unlearn_enforce_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
     with open(picklefilename, 'wb') as file:
         pickle.dump(model_sets, file)
     #compare_df.applymap(lambda x: '%.3f' % x)

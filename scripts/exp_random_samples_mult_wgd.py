@@ -28,7 +28,7 @@ from experiment_utils import dataset_health
 #dname='breastcancer'
 #'adult' #'surgical' # 'diabetes'
 dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo']
-dname=dname_all[4]
+dname=dname_all[1]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -44,7 +44,7 @@ else:
 # Model params to compare; 
 # Training original model
 dist_name, activation_type="squared-euclidean", "identity"
-solver_type, solver_params="lbfgs", {"max_runs": 5, "step_size": np.array([0.05]),  "k": 3,
+solver_type, solver_params="sgd", {"max_runs": 5, "step_size": np.array([0.05]),  #"k": 3,
 }
 print(dname, ' random ', solver_type)
 for nprots in [1,2,3]:
