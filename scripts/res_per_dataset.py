@@ -13,7 +13,7 @@ def combine_tabs_per_dataset(dname, exp_type):
     c=0
     for solver_type in solver_types:
         for nprots_per_class in [1,2,3]:
-            tab_filename='%s%s/%s_%s_unlearn_%s_nprot%d.csv'%(srcpath, dname, dname, exp_type, solver_type, nprots_per_class)
+            tab_filename='%s%s/%s_%s_unlearn_%s_nprot%d0.csv'%(srcpath, dname, dname, exp_type, solver_type, nprots_per_class)
             print(tab_filename)
             if os.path.exists(tab_filename):
                 print('file exists')
@@ -33,7 +33,7 @@ def combine_tabs_per_dataset(dname, exp_type):
     resdf.drop(['Mapping'],axis=1, inplace=True)
     resdf.rename(columns={'n':'num_unlearned_samples', 'num_prot': 'prot_per_class'}, inplace=True)
     print(resdf.head(5))
-    respath='%s/%s_%s_unlearning.csv'%(srcpath, dname, exp_type)
+    respath='%s/%s_%s_unlearning_0.csv'%(srcpath, dname, exp_type)
     resdf.to_csv(respath, sep='\t', index=False)
     return resdf
 

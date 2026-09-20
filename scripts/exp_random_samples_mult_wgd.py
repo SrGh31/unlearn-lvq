@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import re
 import pickle
-from sklearn.metrics import roc_auc_score, f1_score
+from sklearn.metrics import roc_auc_score, f1_score, balanced_accuracy_score, accuracy_score
 import random
 from datetime import date
 import time
@@ -26,25 +26,47 @@ from utils import samples_unlearn_random
 # || Dataset name: Breast cancer data ||
 from experiment_utils import dataset_health
 #dname='breastcancer'
-#'adult' #'surgical' # 'diabetes'
-dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo']
-dname=dname_all[1]
+##############  0 ######### 1 ####### 2 ######## 3 ###### 4 ########## 5
+dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo', 'breastcancer']
+dname=dname_all[4]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
 ########################################################################################
-if (dname=='breastcancer'):
+nopts=np.ceil(np.array([0.0001, 0.001, 0.01, 0.05, 0.1, 0.2])*len(Ytrain)).astype(np.int32)
+if dname=='adult':
+    features=['age', 'num-sex', 'race-summary', 'education-num', 'num-marital',
+       'fnlwgt', 'capital-gain', 'hours-per-week', 'Reg_US', 'Work_Private']
+    zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
+elif dname=='diabetes':
+    features=['num_gender','num_cat_age', 'num_change', 'num_diabetesMed', 'time_in_hospital',
+       'num_lab_procedures', 'num_procedures', 'num_medications','number_outpatient', 
+       'number_emergency', 'number_inpatient','number_diagnoses', 'num_acarbose', 'num_acetohexamide', 
+       'num_insulin','num_chlorpropamide', 'num_citoglipton', 'num_examide', 'num_glimepiride',
+       'num_pioglitazone','num_glipizide', 'num_metformin', 'num_glyburide',  'num_rosiglitazone',
+       'num_glimepiride-pioglitazone', 'num_metformin-pioglitazone', 'num_glipizide-metformin', 
+       'num_glyburide-metformin', 'num_metformin-rosiglitazone', 'num_miglitol', 'num_nateglinide', 
+       'num_repaglinide', 'num_tolazamide', 'num_tolbutamide', 'num_troglitazone',
+       'Disch_Home/hospice', 'AfricanAmerican', 'Caucasian']
+    zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
+elif dname=='surgical':
+    features=['bmi', 'Age','gender','race', 'asa_status', 'baseline_cancer', 'baseline_charlson',
+       'baseline_cvd', 'baseline_dementia', 'baseline_diabetes','baseline_digestive', 'baseline_osteoart', 
+       'baseline_psych','baseline_pulmonary', 'ahrq_ccs', 'ccsComplicationRate',#'ccsMort30Rate',
+       'complication_rsi', 'mortality_rsi', #'dow', 'hour', 'month','moonphase', 'mort30', 
+        ]
+    zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
+elif dname=='breastcancer':
     nopts=[1,5,20,30,50,100]
-#nopts=[0.01,0.05,0.1,1,2]
-elif (dname=='criteo'):
+elif dname=='criteo':
     nopts=np.ceil(np.array([0.0001, 0.01, 0.1, 0.2])*len(Ytrain)).astype(np.int32)
 else:
-    nopts=np.ceil(np.array([0.0001, 0.001, 0.01, 0.05, 0.1, 0.2])*len(Ytrain)).astype(np.int32)
+    print('No feature preset reqd')
 ###################################################################################
 # Model params to compare; 
 # Training original model
 dist_name, activation_type="squared-euclidean", "identity"
-solver_type, solver_params="sgd", {"max_runs": 5, "step_size": np.array([0.05]),  #"k": 3,
+solver_type, solver_params="sgd", {"max_runs": 5, "step_size": np.array([0.05]), # "k": 3,
 }
 print(dname, ' random ', solver_type)
 for nprots in [1,2,3]:
@@ -87,7 +109,7 @@ for nprots in [1,2,3]:
             unlearn_indices,relearn_indices=random_learn_set['unlearn_indices'], random_learn_set['relearn_indices']
             unlearn_samples,relearn_samples=random_learn_set['unlearn_samples'], random_learn_set['relearn_samples']
             unlearn_labs,relearn_labs=random_learn_set['unlearn_labs'], random_learn_set['relearn_labs']
-            zXretrain, zXretest=data_norm_log(Xtrain.iloc[relearn_indices], Xtest)
+            zXretrain=zXtrain.iloc[relearn_indices].copy()#, Xtest)
             #Retraining 
             st=time.time()
             ####################################
@@ -141,14 +163,17 @@ for nprots in [1,2,3]:
             dev12, max_dev_indx12=compare_fidelity_glvq(glvq_partial1,unlearned_model)
             print('After unlearning: Deviation between retrained and unlearned models:', dev12)
            #######################################################################################
-            cratio_uo_ur=dev02/dev12
-            print('Dev(prots from original and unlearned models)/Dev(prots from retrained and unlearned models)=%0.03f'%cratio_uo_ur)
+          #  cratio_uo_ur=dev02/dev12
+           # print('Dev(prots from original and unlearned models)/Dev(prots from retrained and unlearned models)=%0.03f'%cratio_uo_ur)
             ###############################################################################
             # Compare original (0) vs retrained (1) vs unlearned (2)
             data_dict_train={'zX_M1':zXretrain}#zXretrain
             perf_train=compare_perf_3(glvq, glvq_partial1, unlearned_model, data_dict_train, relearn_labs)
             data_dict_test={'zX_M1':zXtest}
             perf_test=compare_perf_3(glvq, glvq_partial1, unlearned_model, data_dict_test, Ytest)
+            print('Unlearned samples perf: Retrained vs Unlearned',
+                  balanced_accuracy_score(unlearn_labs, glvq_partial1.predict(zXtrain.iloc[unlearn_indices])),
+                 balanced_accuracy_score(unlearn_labs, unlearned_model.predict(zXtrain.iloc[unlearn_indices])))
             ##############################################################################
             compare_dict={'num_prot': nprots_per_class, 'n':len(unlearn_indices), 'iter': iter, #'prot_dev_02by12':cratio_uo_ur,
             'Mapping':'0:original; 1:retrain; 2:unlearn','et_retrain':elapsed_retrain, 'et_unlearn':elapsed_untrain, 
@@ -179,7 +204,8 @@ for nprots in [1,2,3]:
         cint+=1
             
     model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-    picklefilename='%s/%s/%s_random_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    picklefilename='%s%s/%s_random_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    print('Print picklefile path\n', picklefilename)
     with open(picklefilename, 'wb') as file:
         pickle.dump(model_sets, file)
     #compare_df.applymap(lambda x: '%.3f' % x)

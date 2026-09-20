@@ -163,7 +163,7 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
                     adapt_grad_same_sum=np.sum(adapt_grad_dummy_same, axis=0)
                     del  adapt_grad_dummy_same
             else:
-                adapt_grad_same_sum,adapt_same=np.zeros(np.shape(prot)), np.zeros(np.shape(prot))
+                adapt_grad_same_sum,adapt_grad_same=np.zeros(np.shape(prot)), np.zeros(np.shape(prot))
             if len(idx_diff)>0:
                 if len(idx_diff)==1:
                     adapt_grad_diff=get_grad_diff*adapt_data.iloc[idx_diff]
@@ -203,11 +203,11 @@ def unlearn_relearn_sample_glvq(model:sklvq.models._glvq.GLVQ, data_dict: dict, 
     statistic.
     """
     c, cont_stats_change=0, {}
+    cont_stats_change[c]={'change_type':'original','stats': training_info}
     if len(adapt_action)>1:
         for seq in adapt_action:
             adapt_data, adapt_labels=data_dict['%s_data'%seq], label_dict['%s_labels'%seq]
             adapt_type, old_N=seq, training_info['setsize']
-            cont_stats_change[c]={'change_type':None,'stats': training_info}
             if adapt_type=='unlearn':
                 old_adapt_fac=-1
             else:
@@ -234,11 +234,11 @@ def unlearn_relearn_sample_glvq(model:sklvq.models._glvq.GLVQ, data_dict: dict, 
         cw_dist0, cw_adapt0 =training_info['class_weight'], Counter(adapt_labels)
         for lab in cw_adapt0.keys():
             cw_dist0[lab]=cw_dist0[lab]+old_adapt_fac*len(adapt_labels)
-        
         training_info['setsize']=training_info['setsize']+old_adapt_fac*len(adapt_labels)
         training_info['class_weight']=cw_dist0.copy()
+        c+=1
         cont_stats_change[c]={'change_type':adapt_type,'stats': training_info}
-        return updated_model, cont_stats_change
+    return updated_model, cont_stats_change
     
         
                 

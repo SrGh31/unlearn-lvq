@@ -66,7 +66,7 @@ else:
 # Training original model
 ###################################################################################
 dist_name, activation_type="squared-euclidean", "identity"
-solver_type, solver_params="sgd", {"max_runs": 5, "step_size": np.array([0.05]),# "k": 3,
+solver_type, solver_params="lbfgs", {"max_runs": 5, "step_size": np.array([0.05]),# "k": 3,
                                   }
 print(dname, ' outlier ', solver_type)
 for nprot in [1, 2, 3]:
@@ -112,7 +112,6 @@ for nprot in [1, 2, 3]:
         print('Before unlearning: Deviation between original model and its copy:', dev00)
         unlearn_indices=np.where(closest_dists<=n)[0]
         relearn_indices, relearn_samples=relearn_unlearn_samples(Xtrain, unlearn_indices,0)
-        
         if (len(unlearn_indices)==0) | (len(relearn_indices)==0):
             print(nprots_per_class, n, len(unlearn_indices), len(relearn_indices))
             continue
@@ -121,9 +120,6 @@ for nprot in [1, 2, 3]:
         unlearn_indices,relearn_indices=outlier_learn_set['unlearn_indices'], outlier_learn_set['relearn_indices']
         unlearn_samples,relearn_samples=outlier_learn_set['unlearn_samples'], outlier_learn_set['relearn_samples']
         unlearn_labs,relearn_labs=Ytrain[unlearn_indices], Ytrain[relearn_indices]
-        cw_unlearn, cw_relearn=Counter(unlearn_labs), Counter(relearn_labs)
-        if (cw_relearn[0]==0) | (cw_relearn[0]==0):
-            continue
         zXretrain=zXtrain.iloc[relearn_indices].copy()
         #Retraining 
         st=time.time()
