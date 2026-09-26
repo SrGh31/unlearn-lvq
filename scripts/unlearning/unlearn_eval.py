@@ -66,6 +66,10 @@ def compare_perf_3(model0, model1, model2, data_dict,Y):
         M0_bal_acc, M0_auc=balanced_accuracy_score(Y, est_model0), roc_auc_score(Y, model0.predict_proba(zXp), multi_class='ovr', average='weighted')
         M1_bal_acc, M1_auc=balanced_accuracy_score(Y, est_model1), roc_auc_score(Y, model1.predict_proba(zX),multi_class='ovr', average='weighted')
         M2_bal_acc, M2_auc=balanced_accuracy_score(Y, est_model2), roc_auc_score(Y, model2.predict_proba(zXp), multi_class='ovr', average='weighted')
+    elif len(np.unique(Y))==1:
+        M0_bal_acc, M0_auc=np.sum(Y==est_model0)/len(Y), np.nan
+        M1_bal_acc, M1_auc=np.sum(Y==est_model1)/len(Y), np.nan
+        M2_bal_acc, M2_auc=np.sum(Y==est_model2)/len(Y), np.nan
     else:
         M0_bal_acc, M0_auc=balanced_accuracy_score(Y, est_model0), roc_auc_score(Y, model0.predict_proba(zXp)[:,1], average='weighted')
         M1_bal_acc, M1_auc=balanced_accuracy_score(Y, est_model1), roc_auc_score(Y, model1.predict_proba(zX)[:,1], average='weighted')

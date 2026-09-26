@@ -26,35 +26,39 @@ from utils import samples_unlearn_outliers, relearn_unlearn_samples
 from experiment_utils import dataset_health
 ##############  0 ######### 1 ####### 2 ######## 3 ###### 4 ########## 5
 dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo', 'breastcancer']
-dname=dname_all[4]
+dname=dname_all[0]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
 ###################################################################################
 nopts=[0.000001,0.00001, 0.0001,0.001,0.01, 0.05, 0.1]
-if dname=='adult':
-    features=['age', 'num-sex', 'race-summary', 'education-num', 'num-marital',
-       'fnlwgt', 'capital-gain', 'hours-per-week', 'Reg_US', 'Work_Private']
-    zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
-elif dname=='diabetes':
-    features=['num_gender','num_cat_age', 'num_change', 'num_diabetesMed', 'time_in_hospital',
-       'num_lab_procedures', 'num_procedures', 'num_medications','number_outpatient', 
-       'number_emergency', 'number_inpatient','number_diagnoses', 'num_acarbose', 'num_acetohexamide', 
-       'num_insulin','num_chlorpropamide', 'num_citoglipton', 'num_examide', 'num_glimepiride',
-       'num_pioglitazone','num_glipizide', 'num_metformin', 'num_glyburide',  'num_rosiglitazone',
-       'num_glimepiride-pioglitazone', 'num_metformin-pioglitazone', 'num_glipizide-metformin', 
-       'num_glyburide-metformin', 'num_metformin-rosiglitazone', 'num_miglitol', 'num_nateglinide', 
-       'num_repaglinide', 'num_tolazamide', 'num_tolbutamide', 'num_troglitazone',
-       'Disch_Home/hospice', 'AfricanAmerican', 'Caucasian']
-    zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
-elif dname=='surgical':
-    features=['bmi', 'Age','gender','race', 'asa_status', 'baseline_cancer', 'baseline_charlson',
-       'baseline_cvd', 'baseline_dementia', 'baseline_diabetes','baseline_digestive', 'baseline_osteoart', 
-       'baseline_psych','baseline_pulmonary', 'ahrq_ccs', 'ccsComplicationRate',#'ccsMort30Rate',
-       'complication_rsi', 'mortality_rsi', #'dow', 'hour', 'month','moonphase', 'mort30', 
-        ]
-    zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
-elif dname=='criteo':
+flag=1
+if flag==0:
+    if dname=='adult':
+        features=['age', 'num-sex', 'race-summary', 'education-num', 'num-marital',
+           'fnlwgt', 'capital-gain', 'hours-per-week', 'Reg_US', 'Work_Private']
+        zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
+    elif dname=='diabetes':
+        features=['num_gender','num_cat_age', 'num_change', 'num_diabetesMed', 'time_in_hospital',
+           'num_lab_procedures', 'num_procedures', 'num_medications','number_outpatient', 
+           'number_emergency', 'number_inpatient','number_diagnoses', 'num_acarbose', 'num_acetohexamide', 
+           'num_insulin','num_chlorpropamide', 'num_citoglipton', 'num_examide', 'num_glimepiride',
+           'num_pioglitazone','num_glipizide', 'num_metformin', 'num_glyburide',  'num_rosiglitazone',
+           'num_glimepiride-pioglitazone', 'num_metformin-pioglitazone', 'num_glipizide-metformin', 
+           'num_glyburide-metformin', 'num_metformin-rosiglitazone', 'num_miglitol', 'num_nateglinide', 
+           'num_repaglinide', 'num_tolazamide', 'num_tolbutamide', 'num_troglitazone',
+           'Disch_Home/hospice', 'AfricanAmerican', 'Caucasian']
+        zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
+    elif dname=='surgical':
+        features=['bmi', 'Age','gender','race', 'asa_status', 'baseline_cancer', 'baseline_charlson',
+           'baseline_cvd', 'baseline_dementia', 'baseline_diabetes','baseline_digestive', 'baseline_osteoart', 
+           'baseline_psych','baseline_pulmonary', 'ahrq_ccs', 'ccsComplicationRate',#'ccsMort30Rate',
+           'complication_rsi', 'mortality_rsi', #'dow', 'hour', 'month','moonphase', 'mort30', 
+            ]
+        zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
+    else:
+        flag=0
+if dname=='criteo':
     nopts=nopts=[0.0001, 0.001, 0.01, 0.05,0.1]
 elif dname=='banking':
     nopts=[0.0001,0.001,0.01, 0.02, 0.05,0.08, 0.1]
@@ -65,26 +69,31 @@ else:
 # * nprots_per_class=[1,2,3]
 # Training original model
 ###################################################################################
-dist_name, activation_type="squared-euclidean", "identity"
+dist_name, activation_type="squared-euclidean", "swish"#, "identity"
 solver_type, solver_params="sgd", {"max_runs": 5, "step_size": np.array([0.05]),# "k": 3,
                                   }
+activation_params={"beta": 5}
 print(dname, ' outlier ', solver_type)
-for nprot in [1, 2, 3]:
+for nprot in [1, 2]:
     nprots_per_class=nprot
     cint=0
     if solver_type in ['sgd', 'wgd']:
         glvq=model = GLVQ(
-            distance_type=dist_name, activation_type=activation_type, prototype_n_per_class=nprots_per_class,
+            distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,
+            prototype_n_per_class=nprots_per_class,
             solver_type=solver_type, solver_params=solver_params,random_state=42)
         glvq_copy=GLVQ(
-            distance_type=dist_name, activation_type=activation_type, prototype_n_per_class=nprots_per_class,
+            distance_type=dist_name, activation_type=activation_type, activation_params=activation_params, 
+            prototype_n_per_class=nprots_per_class,
             solver_type=solver_type, solver_params=solver_params,random_state=42)
     else:
         glvq=model = GLVQ(
-            distance_type=dist_name, activation_type=activation_type, prototype_n_per_class=nprots_per_class,
+            distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,
+            prototype_n_per_class=nprots_per_class,
             solver_type=solver_type,random_state=42)
         glvq_copy=GLVQ(
-            distance_type=dist_name, activation_type=activation_type, prototype_n_per_class=nprots_per_class,
+            distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,
+            prototype_n_per_class=nprots_per_class,
             solver_type=solver_type,random_state=42)
 
     glvq.fit(zXtrain, Ytrain)
@@ -112,8 +121,7 @@ for nprot in [1, 2, 3]:
         print('Before unlearning: Deviation between original model and its copy:', dev00)
         unlearn_indices=np.where(closest_dists<=n)[0]
         relearn_indices, relearn_samples=relearn_unlearn_samples(Xtrain, unlearn_indices,0)
-        
-        if (len(unlearn_indices)==0) | (len(relearn_indices)==0):
+        if (len(unlearn_indices)==0) | (len(relearn_indices)<=2) | (len(np.unique(Ytrain[relearn_indices]))==1):
             print(nprots_per_class, n, len(unlearn_indices), len(relearn_indices))
             continue
         outlier_learn_set={'unlearn_indices':unlearn_indices, 'unlearn_samples':Xtrain.iloc[unlearn_indices],
@@ -122,7 +130,7 @@ for nprot in [1, 2, 3]:
         unlearn_samples,relearn_samples=outlier_learn_set['unlearn_samples'], outlier_learn_set['relearn_samples']
         unlearn_labs,relearn_labs=Ytrain[unlearn_indices], Ytrain[relearn_indices]
         cw_unlearn, cw_relearn=Counter(unlearn_labs), Counter(relearn_labs)
-        if (cw_relearn[0]==0) | (cw_relearn[0]==0):
+        if (cw_relearn[0]<=2) | (cw_relearn[1]<=2):
             continue
         zXretrain=zXtrain.iloc[relearn_indices].copy()
         #Retraining 
@@ -169,13 +177,10 @@ for nprot in [1, 2, 3]:
     #       print('n=%d, Elapsed time diff=%3f-%3f'%(len(unlearn_indices), elapsed_retrain,elapsed_untrain))
         #########################################
         dev02, max_dev_indx02=compare_fidelity_glvq(glvq, unlearned_model)
-    #        print('After unlearning: Deviation between original and unlearned models:', dev02)
         dev12, max_dev_indx12=compare_fidelity_glvq(glvq_partial1, unlearned_model)
-    #        print('After unlearning: Deviation between retrained and unlearned models:', dev12)
         ###############################################################################################################
-     #   cratio_uo_ur=dev02/dev12
-     #   print('Dev(prots from original and unlearned models)/Dev(prots from retrained and unlearned models)=%0.03f'%cratio_uo_ur)
-        print('Unlearned samples perf: Retrained vs Unlearned',
+        print('Unlearned samples perf: Original vs Retrained vs Unlearned',
+              balanced_accuracy_score(unlearn_labs, glvq.predict(zXtrain.iloc[unlearn_indices])),
                   balanced_accuracy_score(unlearn_labs, glvq_partial1.predict(zXtrain.iloc[unlearn_indices])),
                  balanced_accuracy_score(unlearn_labs, unlearned_model.predict(zXtrain.iloc[unlearn_indices])))
         ###############################################################################
@@ -184,11 +189,14 @@ for nprot in [1, 2, 3]:
         perf_train=compare_perf_3(glvq, glvq_partial1, unlearned_model, data_dict_train, relearn_labs)
         data_dict_test={'zX_M1':zXtest}
         perf_test=compare_perf_3(glvq, glvq_partial1, unlearned_model, data_dict_test, Ytest)
+        data_dict_unlearn={'zX_M1': zXtrain.iloc[unlearn_indices]}
+        perf_unlearn=compare_perf_3(glvq, glvq_partial1, unlearned_model, data_dict_unlearn, unlearn_labs)
         ##############################################################################
-        compare_dict={'num_prot': nprots_per_class, 'n':len(unlearn_indices), #'iter': iter, #'prot_dev_02by12':cratio_uo_ur,
-            'Mapping':'0:original; 1:retrain; 2:unlearn','et_retrain':elapsed_retrain, 'et_unlearn':elapsed_untrain, 
+        compare_dict={'num_prot': nprots_per_class, 'n':len(unlearn_indices), 'iter': iter, #'prot_dev_02by12':cratio_uo_ur,
+            #'Mapping':'0:original; 1:retrain; 2:unlearn',
+            'et_retrain':elapsed_retrain, 'et_unlearn':elapsed_untrain, 
             'prot_dev_01': dev01,'prot_dev_02': dev02,'prot_dev_12': dev12,
-            'n_retrain': len(relearn_labs), 
+            'n_retrain': len(relearn_labs),
             'tr_M0_nAcc': perf_train['M0_npreds'], 'tr_M1_nAcc': perf_train['M1_npreds'], 
             'tr_retain_corr_M1':perf_train['ret_corr_pred_M1'], 'tr_lost_preds_M1':perf_train['lost_corr_pred_M1'],
             'tr_imp_corr_M1':perf_train['imp_corr_pred_M1'], 'tr_M2_nAcc': perf_train['M2_npreds'],  
@@ -202,7 +210,15 @@ for nprot in [1, 2, 3]:
             'te_retain_corr_M2':perf_test['ret_corr_pred_M2'], 'te_lost_preds_M2':perf_test['lost_corr_pred_M2'],
             'te_imp_corr_M2':perf_test['imp_corr_pred_M2'],
             'te_M0_Bacc': perf_test['M0_Bacc'], 'te_M1_Bacc': perf_test['M1_Bacc'], 'te_M2_Bacc': perf_test['M2_Bacc'],
-            'te_M0_AUC': perf_test['M0_auc'],'te_M1_AUC': perf_test['M1_auc'],'te_M2_AUC': perf_test['M2_auc']}
+            'te_M0_AUC': perf_test['M0_auc'],'te_M1_AUC': perf_test['M1_auc'],'te_M2_AUC': perf_test['M2_auc'],
+            'un_M0_nAcc': perf_unlearn['M0_npreds'],'un_M1_nAcc': perf_unlearn['M1_npreds'],
+            'un_retain_corr_M1':perf_unlearn['ret_corr_pred_M1'], 'un_lost_preds_M1':perf_unlearn['lost_corr_pred_M1'],
+            'un_imp_corr_M1':perf_unlearn['imp_corr_pred_M1'], 'un_M2_nAcc': perf_unlearn['M2_npreds'],
+            'un_retain_corr_M2':perf_unlearn['ret_corr_pred_M2'], 'un_lost_preds_M2':perf_unlearn['lost_corr_pred_M2'],
+            'un_imp_corr_M2':perf_unlearn['imp_corr_pred_M2'],
+            'un_M0_Bacc': perf_unlearn['M0_Bacc'], 'un_M1_Bacc': perf_unlearn['M1_Bacc'], 'un_M2_Bacc': perf_unlearn['M2_Bacc'],
+            'un_M0_AUC': perf_unlearn['M0_auc'],'te_M1_AUC': perf_unlearn['M1_auc'],'un_M2_AUC': perf_unlearn['M2_auc']
+                         }
         retrained_n[cint]={'n':n, 'models':glvq_partial1,'retrain_indices': relearn_indices }
         unlearned_n[cint]={'n':n, 'models': unlearned_model, 'unlearn_indices': unlearn_indices }
         if cint==0: #'dev_auc_M1M2'
@@ -213,12 +229,12 @@ for nprot in [1, 2, 3]:
             compare_df=pd.concat([compare_df, temp])
             cint+=1
         if cint>0:
-            tab_filename='%s%s/%s_outlier_unlearn_%s_nprot%d0.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
+            tab_filename='%s%s/%s_outlier_unlearn_swish_%s_nprot%d0.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
     #        print(tab_filename)
         compare_df.to_csv(tab_filename, index=False, sep='\t')
     if cint>0:
         model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-        picklefilename='%s%s/%s_outlier_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+        picklefilename='%s%s/%s_outlier_swish_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
         with open(picklefilename, 'wb') as file:
             pickle.dump(model_sets, file)
     print(dname, ' Outlier ', solver_type, ' Num prots: ', nprots_per_class)

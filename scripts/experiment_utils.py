@@ -34,10 +34,32 @@ def dataset_health(dname):
         features=trainset.columns[:-1]
         Ytrain, Ytest=trainset['Label'].to_numpy(), testset['Label'].to_numpy()
     Xtrain, Xtest=trainset[features], testset[features]
+    if dname=='adult':
+        features=['age', 'num-sex', 'race-summary', 'education-num', 'num-marital',
+           'fnlwgt', 'capital-gain', 'hours-per-week', 'Reg_US', 'Work_Private']
+    elif dname=='diabetes':
+        features=['num_gender','num_cat_age', 'num_change', 'num_diabetesMed', 'time_in_hospital',
+           'num_lab_procedures', 'num_procedures', 'num_medications','number_outpatient', 
+           'number_emergency', 'number_inpatient','number_diagnoses', 'num_acarbose', 'num_acetohexamide', 
+           'num_insulin','num_chlorpropamide', 'num_citoglipton', 'num_examide', 'num_glimepiride',
+           'num_pioglitazone','num_glipizide', 'num_metformin', 'num_glyburide',  'num_rosiglitazone',
+           'num_glimepiride-pioglitazone', 'num_metformin-pioglitazone', 'num_glipizide-metformin', 
+           'num_glyburide-metformin', 'num_metformin-rosiglitazone', 'num_miglitol', 'num_nateglinide', 
+           'num_repaglinide', 'num_tolazamide', 'num_tolbutamide', 'num_troglitazone',
+           'Disch_Home/hospice', 'AfricanAmerican', 'Caucasian']
+    elif dname=='surgical':
+        features=['bmi', 'Age','gender','race', 'asa_status', 'baseline_cancer', 'baseline_charlson',
+           'baseline_cvd', 'baseline_dementia', 'baseline_diabetes','baseline_digestive', 'baseline_osteoart', 
+           'baseline_psych','baseline_pulmonary', 'ahrq_ccs', 'ccsComplicationRate',#'ccsMort30Rate',
+           'complication_rsi', 'mortality_rsi', #'dow', 'hour', 'month','moonphase', 'mort30', 
+            ]
     return Xtrain, Ytrain, Xtest, Ytest, features
 
-def data_normalization(Xtrain, Xtest):    
+def data_normalization(Xtrain, Xtest):
+    stol=10^(-5)
     mu, std=Xtrain.mean(skipna=True), Xtrain.std(skipna=True)
+    if std<=stol:
+        std=1
     zXtrain, zXtest=(Xtrain-mu)/std, (Xtest-mu)/std
     return zXtrain, zXtest
 

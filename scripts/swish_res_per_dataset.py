@@ -6,14 +6,15 @@ if parts[-1]=='scripts':
     parts=parts[:-1]
 srcpath='/'.join(parts)+'/results/'
 
-solver_types=['lbfgs','wgd', 'sgd']
-dname_all=['breastcancer','diabetes', 'surgical', 'banking', 'adult', 'criteo']
+solver_types=['sgd']
+dname_all=['breastcancer','diabetes', 'surgical', 'banking', 'adult']#, 'criteo']
 
 def combine_tabs_per_dataset(dname, exp_type):
     c=0
     for solver_type in solver_types:
-        for nprots_per_class in [1,2,3]:
-            tab_filename='%s%s/%s_%s_unlearn_%s_nprot%d0.csv'%(srcpath, dname, dname, exp_type, solver_type, nprots_per_class)
+        for nprots_per_class in [1,2]:
+            #resultspath+'%s/%s_random_unlearn_swish_%s_nprot%d0.csv'%(dname, dname,solver_type, nprots_per_class)
+            tab_filename='%s%s/%s_random_unlearn_swish_%s_nprot%d0.csv'%(srcpath, dname, dname,solver_type, nprots_per_class)
             print(tab_filename)
             if os.path.exists(tab_filename):
                 print('file exists')
@@ -30,10 +31,10 @@ def combine_tabs_per_dataset(dname, exp_type):
             else:
                 print('file does not exist')
     resdf=resdf[['solver_type']+rescols].copy()
-    resdf.drop(['Mapping'],axis=1, inplace=True)
-    resdf.rename(columns={'n':'num_unlearned_samples', 'num_prot': 'prot_per_class'}, inplace=True)
+  #  resdf.drop(['Mapping'],axis=1, inplace=True)
+    resdf.rename(columns={'n':'n_unlearned', 'num_prot': 'prot_per_class'}, inplace=True)
     print(resdf.head(5))
-    respath='%s/%s_%s_unlearning_0.csv'%(srcpath, dname, exp_type)
+    respath='%s/%s_%s_unlearning_swish.csv'%(srcpath, dname, exp_type)
     resdf.to_csv(respath, sep='\t', index=False)
     return resdf
 

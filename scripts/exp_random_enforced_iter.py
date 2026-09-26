@@ -5,6 +5,7 @@ import re
 import pickle
 from sklearn.metrics import roc_auc_score, f1_score
 import random
+import copy
 from datetime import date
 import time
 from collections import Counter
@@ -27,7 +28,7 @@ from experiment_utils import dataset_health
 #dname='breastcancer'
 #'adult' #'surgical' # 'diabetes'
 dname_all=['breastcancer','diabetes', 'surgical', 'banking', 'adult', 'criteo']
-dname=dname_all[3]
+dname=dname_all[0]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -43,7 +44,7 @@ else:
 # Model params to compare; 
 # Training original model
 dist_name, activation_type="squared-euclidean", "identity"
-solver_type, solver_params="wgd", {"max_runs": 5, "step_size": np.array([0.05]),  "k": 3,
+solver_type, solver_params="sgd", {"max_runs": 5, "step_size": np.array([0.05]), # "k": 3,
 }
 print(dname, ' random ', solver_type)
 for nprots in [1,2]:
@@ -110,9 +111,9 @@ for nprots in [1,2]:
             #########################################
             adapt_action=list(['unlearn'])
             adj_data_dict={'unlearn_data': zXtrain.iloc[unlearn_indices], 
-                          # 'enforce_data': zXtrain.iloc[enforce_indices]
+                           'enforce_data': zXtrain.iloc[enforce_indices]
                           }
-            adj_label_dict={'unlearn_labels': unlearn_labs, #'enforce_labels': Ytrain[enforce_indices]
+            adj_label_dict={'unlearn_labels': unlearn_labs, 'enforce_labels': Ytrain[enforce_indices]
                            }
             if solver_type=='lbfgs':
                 data_dict={'zX_M1':zXretrain}
@@ -138,8 +139,10 @@ for nprots in [1,2]:
             elapsed_untrain=(time.time()-st_un)/60
             #########################################
         #    print(type( Ytrain[enforce_indices]), len(enforce_indices), len(unlearn_indices))
-            adjusted_iter[iter]={'model': adjusted_model, 'unlearn_indices': unlearn_indices, 'enforced_indices':enforce_indices,
+            adjusted_iter[iter]={'model': adjusted_model, 'model_prots':adjusted_model.prototypes_.copy(),
+                                 'unlearn_indices': unlearn_indices, 'enforced_indices':enforce_indices,
                                 'cont_stats_change':cont_stats_change}
+            adjusted_iter[iter]=copy.copy(adjusted_model)
             #########################################
             elapsed_untrain=(time.time()-st_un)/60
             print('n=%d/%d, Elapsed time diff=retrain (%3f) -unlearn (%3f)'%(n, nopts[-1], elapsed_retrain, elapsed_untrain))
@@ -160,12 +163,19 @@ for nprots in [1,2]:
             perf_train=compare_perf_3(glvq, glvq_partial1, adjusted_model, data_dict_train, relearn_labs)
             data_dict_test={'zX_M1':zXtest}
             perf_test=compare_perf_3(glvq, glvq_partial1, adjusted_model, data_dict_test, Ytest)
+            data_dict_unlearn={'zX_M1':zXtrain.iloc[unlearn_indices]}
+            perf_unlearn=compare_perf_3(glvq, glvq_partial1, adjusted_model, data_dict_unlearn, Ytrain[unlearn_indices])
             ##############################################################################
-            compare_dict={'num_prot': nprots_per_class, 'n_unlearn':len(unlearn_indices), 'n_enforce':len(enforce_indices),
-                          'n_retrain': len(relearn_labs), 'iter': iter, #'prot_dev_02by12':cratio_uo_ur,
+            print('Unlearned samples perf: Original vs Retrained vs Unlearned',
+                   balanced_accuracy_score(unlearn_labs, glvq.predict(zXtrain.iloc[unlearn_indices])),
+                  balanced_accuracy_score(unlearn_labs, glvq_partial1.predict(zXtrain.iloc[unlearn_indices])),
+                 balanced_accuracy_score(unlearn_labs, adjusted_model.predict(zXtrain.iloc[unlearn_indices])))
+            ##############################################################################
+            compare_dict={'num_prot': nprots_per_class, 'n':len(unlearn_indices), 'iter': iter, #'prot_dev_02by12':cratio_uo_ur,
+            #'Mapping':'0:original; 1:retrain; 2:unlearn',
             'et_retrain':elapsed_retrain, 'et_unlearn':elapsed_untrain, 
             'prot_dev_01': dev01,'prot_dev_02': dev02,'prot_dev_12': dev12,
-            'M0_bAcc_Unlearn': perf_before_unlearn, 'M1_bAcc_Unlearn':perf_after_retrain, 'M2_bAcc_Unlearn': perf_after_unlearn,
+            'n_retrain': len(relearn_labs),
             'tr_M0_nAcc': perf_train['M0_npreds'], 'tr_M1_nAcc': perf_train['M1_npreds'], 
             'tr_retain_corr_M1':perf_train['ret_corr_pred_M1'], 'tr_lost_preds_M1':perf_train['lost_corr_pred_M1'],
             'tr_imp_corr_M1':perf_train['imp_corr_pred_M1'], 'tr_M2_nAcc': perf_train['M2_npreds'],  
@@ -179,12 +189,21 @@ for nprots in [1,2]:
             'te_retain_corr_M2':perf_test['ret_corr_pred_M2'], 'te_lost_preds_M2':perf_test['lost_corr_pred_M2'],
             'te_imp_corr_M2':perf_test['imp_corr_pred_M2'],
             'te_M0_Bacc': perf_test['M0_Bacc'], 'te_M1_Bacc': perf_test['M1_Bacc'], 'te_M2_Bacc': perf_test['M2_Bacc'],
-            'te_M0_AUC': perf_test['M0_auc'],'te_M1_AUC': perf_test['M1_auc'],'te_M2_AUC': perf_test['M2_auc']}
+            'te_M0_AUC': perf_test['M0_auc'],'te_M1_AUC': perf_test['M1_auc'],'te_M2_AUC': perf_test['M2_auc'],
+            'un_M0_nAcc': perf_unlearn['M0_npreds'],'un_M1_nAcc': perf_unlearn['M1_npreds'],
+            'un_retain_corr_M1':perf_unlearn['ret_corr_pred_M1'], 'un_lost_preds_M1':perf_unlearn['lost_corr_pred_M1'],
+            'un_imp_corr_M1':perf_unlearn['imp_corr_pred_M1'], 'un_M2_nAcc': perf_unlearn['M2_npreds'],
+            'un_retain_corr_M2':perf_unlearn['ret_corr_pred_M2'], 'un_lost_preds_M2':perf_unlearn['lost_corr_pred_M2'],
+            'un_imp_corr_M2':perf_unlearn['imp_corr_pred_M2'],
+            'un_M0_Bacc': perf_unlearn['M0_Bacc'], 'un_M1_Bacc': perf_unlearn['M1_Bacc'], 'un_M2_Bacc': perf_unlearn['M2_Bacc'],
+            'un_M0_AUC': perf_unlearn['M0_auc'],'te_M1_AUC': perf_unlearn['M1_auc'],'un_M2_AUC': perf_unlearn['M2_auc']
+                         }
             if (n==nopts[0]) & (iter==0): #'dev_auc_M1M2'
                 compare_df=pd.DataFrame.from_dict(data=compare_dict, orient='index').T
             else:
                 temp= pd.DataFrame.from_dict(data=compare_dict, orient='index').T
                 compare_df=pd.concat([compare_df, temp])
+            del compare_dict, perf_after_unlearn, perf_train, perf_test, perf_unlearn, data_dict_unlearn, adjusted_model
             tab_filename='%s%s/%s_random_unlearn_enforce_%s_nprot%d.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
             compare_df.to_csv(tab_filename, index=False, sep='\t')
         retrained_n[cint]={'n':n, 'models':retrained_iter}
@@ -192,7 +211,7 @@ for nprots in [1,2]:
         cint+=1
             #unlearn_enforce
     model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned':adjusted_n}
-    picklefilename='%s%s/%s_random_unlearn_enforce_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    picklefilename='%s%s/%s_random_unlearn_enforce_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
     with open(picklefilename, 'wb') as file:
         pickle.dump(model_sets, file)
     #compare_df.applymap(lambda x: '%.3f' % x)
