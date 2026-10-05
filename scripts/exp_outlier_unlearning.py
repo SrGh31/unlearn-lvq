@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import re
 import pickle
+import copy
 from sklearn.metrics import roc_auc_score, f1_score
 import random
 from datetime import date
@@ -25,8 +26,8 @@ from utils import samples_unlearn_outliers, relearn_unlearn_samples
 # || Dataset name: Breast cancer data ||
 from experiment_utils import dataset_health
 ##############  0 ######### 1 ####### 2 ######## 3 ###### 4 ########## 5
-dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo', 'breastcancer']
-dname=dname_all[4]
+dname_all=['breastcancer', 'diabetes', 'surgical', 'banking', 'adult', 'criteo']
+dname=dname_all[0]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -200,7 +201,8 @@ for nprot in [1, 2, 3]:
             'te_M0_Bacc': perf_test['M0_Bacc'], 'te_M1_Bacc': perf_test['M1_Bacc'], 'te_M2_Bacc': perf_test['M2_Bacc'],
             'te_M0_AUC': perf_test['M0_auc'],'te_M1_AUC': perf_test['M1_auc'],'te_M2_AUC': perf_test['M2_auc']}
         retrained_n[cint]={'n':n, 'models':glvq_partial1,'retrain_indices': relearn_indices }
-        unlearned_n[cint]={'n':n, 'models': unlearned_model, 'unlearn_indices': unlearn_indices }
+        unlearned_n[cint]={'n':n, 'models': copy.copy(unlearned_model), 'unlearn_indices': unlearn_indices,
+                           'model_prots':unlearned_model.prototypes_.copy(),'unlearn_indices': unlearn_indices}
         if cint==0: #'dev_auc_M1M2'
             compare_df=pd.DataFrame.from_dict(data=compare_dict, orient='index').T
             cint+=1
@@ -209,12 +211,12 @@ for nprot in [1, 2, 3]:
             compare_df=pd.concat([compare_df, temp])
             cint+=1
         if cint>0:
-            tab_filename='%s%s/%s_outlier_unlearn_%s_nprot%d0.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
+            tab_filename='%s%s/%s_outlier_unlearn_%s_nprot%d.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
     #        print(tab_filename)
         compare_df.to_csv(tab_filename, index=False, sep='\t')
     if cint>0:
         model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-        picklefilename='%s%s/%s_outlier_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+        picklefilename='%s%s/%s_outlier_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
         with open(picklefilename, 'wb') as file:
             pickle.dump(model_sets, file)
     print(dname, ' Outlier ', solver_type, ' Num prots: ', nprots_per_class)

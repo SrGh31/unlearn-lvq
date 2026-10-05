@@ -124,8 +124,10 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
     max_iter=1
     if adapt_type=='unlearn':
         adapt_factor=1
+        step_size=model.get_params()['solver_params']['step_size'][0]
     else:
         adapt_factor=-1
+        step_size=model.get_params()['solver_params']['step_size'][0]/2
     new_N, old_N=training_info['setsize']-len(adapt_labels), training_info['setsize']
     secure_copy=model.prototypes_.copy()
     dist_same, dist_diff, i_dist_same, i_dist_diff=compute_distances(model, adapt_data, adapt_labels)
@@ -134,7 +136,7 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
         for nprot in range(0,model.prototypes_labels_.shape[0]):
             prot_lab=model.prototypes_labels_[nprot]
             initial_cw=training_info['class_weight'][prot_lab]
-            cw_new=initial_cw-np.sum(adapt_labels==prot_lab)
+            cw_new=initial_cw-adapt_factor*np.sum(adapt_labels==prot_lab)
             prot=np.reshape(model.prototypes_[nprot].copy(), (1,model.prototypes_.shape[1]))
             idx_same, idx_diff=np.where(i_dist_same==nprot)[0], np.where(i_dist_diff==nprot)[0]
             get_grad_same=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
@@ -180,7 +182,7 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
             adapt_grad_same=np.reshape(adapt_grad_same, (1,model.prototypes_.shape[1]))
             if model.get_params()['solver_type'] in ["sgd", "wgd"]:
                 updated_prots[nprot]=(updated_prots[nprot]-adapt_factor*(adapt_grad_diff-
-                                                            adapt_grad_same)*model.get_params()['solver_params']['step_size'][0])*(old_N/new_N)
+                                                            adapt_grad_same)*step_size)*(old_N/new_N)
             else:
                 updated_prots[nprot]=(updated_prots[nprot]-adapt_factor*(adapt_grad_diff-
                                                                             adapt_grad_same)*model.unlearn_rate_)*(old_N/new_N)

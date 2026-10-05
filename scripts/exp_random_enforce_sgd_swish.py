@@ -29,7 +29,7 @@ from utils import samples_unlearn_random, relearn_unlearn_samples, samples_enfor
 from experiment_utils import dataset_health
 #################  0 ######### 1 ######### 2 ######## 3 ###### 4 ########## 5
 dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes','criteo']
-dname=dname_all[5]
+dname=dname_all[0]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -82,14 +82,20 @@ if flag==0:
 if dname=='breastcancer':
     nopts=[1,5,20,30,50,100]
 elif dname=='criteo':
-    nopts=np.ceil(np.array([0.0001, 0.01, 0.1, 0.2])*len(Ytrain)).astype(np.int32)
+    nopts=np.ceil(np.array([0.0001, 0.01, 0.1])*len(Ytrain)).astype(np.int32)
 else:
     print('No feature preset reqd')
 ###################################################################################
 # Model params to compare; 
 # Training original model
+if dname=='criteo':
+    iterations=[0,1,2]
+    max_runs, step_size=2, np.array([0.075])
+else:
+    iterations=[0,1,2,3,4]
+    max_runs, step_size=5,np.array([0.05])
 dist_name, activation_type="squared-euclidean", "swish",# "identity"
-solver_type, solver_params="sgd", {"max_runs": 5, "step_size": np.array([0.05]), # "k": 3,
+solver_type, solver_params="sgd", {"max_runs": max_runs, "step_size": step_size, # "k": 3,
 }
 print(dname, ' random ', solver_type)
 for nprots in [1,2]:
@@ -103,12 +109,12 @@ for nprots in [1,2]:
                 prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type, solver_params=solver_params)
             if dname=='criteo':
-		glvq_copy=copy.deepcopy(glvq)
-	    else:
-		glvq_copy=GLVQ(
-                distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
-                prototype_n_per_class=nprots_per_class,
-                solver_type=solver_type, solver_params=solver_params)
+                glvq_copy=copy.deepcopy(glvq)
+            else:
+                glvq_copy=GLVQ(
+                    distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
+                    prototype_n_per_class=nprots_per_class,
+                    solver_type=solver_type, solver_params=solver_params)
         else:
             glvq= GLVQ(
                 distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
@@ -145,7 +151,7 @@ for nprots in [1,2]:
         else:
             logging.info('CLEAR: Zero deviation at baseline')
         retrained_iter, adjusted_iter={},{}
-        for iter in [0,1,2,3,4]:
+        for iter in iterations:
             random_learn_set=samples_unlearn_random(Xtrain, Ytrain, n,0) 
             #if iter>0:
             glvq_copy=copy.deepcopy(glvq) #.prototypes_.copy()

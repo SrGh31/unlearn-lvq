@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import re
 import pickle
+import copy
 from sklearn.metrics import roc_auc_score, f1_score
 import random
 from datetime import date
@@ -13,11 +14,11 @@ import sklvq
 parts=os.getcwd().split('/')#[:-1]
 if (parts[-1]=='notebooks') |((parts[-1]=='scripts')):
     parts=parts[:-1]
-code_path='/'.join(parts)+'/scripts/'
+common_path=filename='/'.join(parts)
+code_path=common_path+'/scripts/'
 sys.path.append(code_path)
-
-resultspath='/'.join(parts)+'/results/'
-modelpath='/'.join(parts)+'/models/'
+resultspath=common_path+'/results/'
+modelpath=common_path+'/models/'
 from experiment_utils import data_normalization, data_norm_log
 from unlearning.unlearn_eval import *
 from unlearning.unlearn_lvq import unlearn_sample_effect_glvq
@@ -25,13 +26,13 @@ from utils import samples_unlearn_outliers, relearn_unlearn_samples
 # || Dataset name: Breast cancer data ||
 from experiment_utils import dataset_health
 ##############  0 ######### 1 ####### 2 ######## 3 ###### 4 ########## 5
-dname_all=['diabetes', 'surgical', 'banking', 'adult', 'criteo', 'breastcancer']
-dname=dname_all[0]
+dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes', 'criteo']
+dname=dname_all[5]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
 ###################################################################################
-nopts=[0.000001,0.00001, 0.0001,0.001,0.01, 0.05, 0.1]
+nopts=[0.000001, 0.000005,0.00001, 0.0001,0.001,0.01, 0.05, 0.1]
 flag=1
 if flag==0:
     if dname=='adult':
@@ -65,6 +66,17 @@ elif dname=='banking':
 else:
     print('No feature preset reqd')
 ###################################################################################
+beta_dname={'breastcancer':[5,5], 'surgical': [15,5], 'banking': [18,20], 'adult': [15,10], 'diabetes': [10,10],
+'criteo':[5,5]}
+#beta_dname2={'breastcancer':5,'surgical': 5 'banking': 20, 'adult': 10, 'diabetes': 10 }
+#########################################
+import logging
+logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('basic_logger')
+logfilename='%s/logs/info_outlier_%s_swish.log'%(common_path, dname)
+print(logfilename)
+logging.basicConfig(level=logging.INFO,
+    filename=logfilename,filemode='w', )
 # Model params to compare; 
 # * nprots_per_class=[1,2,3]
 # Training original model
@@ -74,8 +86,9 @@ solver_type, solver_params="sgd", {"max_runs": 5, "step_size": np.array([0.05]),
                                   }
 activation_params={"beta": 5}
 print(dname, ' outlier ', solver_type)
-for nprot in [1, 2]:
-    nprots_per_class=nprot
+for nprots in [1,2]:
+    nprots_per_class=nprots
+    activation_params={"beta": beta_dname[dname][nprots-1]}
     cint=0
     if solver_type in ['sgd', 'wgd']:
         glvq=model = GLVQ(
@@ -115,8 +128,11 @@ for nprot in [1, 2]:
     glvq_copy.secure_prototypes_=glvq_copy.prototypes_.copy()
     cint=0
     for n in nopts:
-        if cint>0:
-            glvq_copy.prototypes_=glvq_copy.secure_prototypes_.copy()
+        glvq_copy=copy.deepcopy(glvq)
+        if cint==0:
+            glvq_copy.secure_prototypes_=glvq.prototypes_.copy()
+        else:
+            glvq_copy.prototypes_=glvq.prototypes_.copy()
         dev00, max_dev_indx0=compare_fidelity_glvq(glvq, glvq_copy)
         print('Before unlearning: Deviation between original model and its copy:', dev00)
         unlearn_indices=np.where(closest_dists<=n)[0]
@@ -220,22 +236,26 @@ for nprot in [1, 2]:
             'un_M0_AUC': perf_unlearn['M0_auc'],'te_M1_AUC': perf_unlearn['M1_auc'],'un_M2_AUC': perf_unlearn['M2_auc']
                          }
         retrained_n[cint]={'n':n, 'models':glvq_partial1,'retrain_indices': relearn_indices }
-        unlearned_n[cint]={'n':n, 'models': unlearned_model, 'unlearn_indices': unlearn_indices }
-        if cint==0: #'dev_auc_M1M2'
+        unlearned_n[cint]={'n':n, 'models': copy.copy(unlearned_model), 'unlearn_indices': unlearn_indices ,
+                          'model_prots':unlearned_model.prototypes_.copy()}
+        del unlearned_model, unlearn_indices, glvq_partial1, relearn_indices, relearn_labs, zXretrain
+        if (cint>0) & (nprots==1): #'dev_auc_M1M2'
             compare_df=pd.DataFrame.from_dict(data=compare_dict, orient='index').T
             cint+=1
         else:
             temp=pd.DataFrame.from_dict(data=compare_dict, orient='index').T
             compare_df=pd.concat([compare_df, temp])
             cint+=1
-        if cint>0:
-            tab_filename='%s%s/%s_outlier_unlearn_swish_%s_nprot%d0.csv'%(resultspath, dname, dname, solver_type, nprots_per_class)
+       # if (cint>0) & (nprots==1):     
     #        print(tab_filename)
-        compare_df.to_csv(tab_filename, index=False, sep='\t')
+        if cint>0:
+            tab_filename=resultspath+'%s/%s_outlier_unlearn_swish_%s_all.csv'%(dname, dname,solver_type)
+            compare_df.to_csv(tab_filename, index=False, sep='\t')      
     if cint>0:
         model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-        picklefilename='%s%s/%s_outlier_swish_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+        picklefilename='%s%s/%s_outlier_swish_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
         with open(picklefilename, 'wb') as file:
             pickle.dump(model_sets, file)
     print(dname, ' Outlier ', solver_type, ' Num prots: ', nprots_per_class)
+    del model_sets, retrained_n, unlearned_n, glvq, glvq_copy, compare_df
     #compare_df.applymap(lambda x: '%.3f' % x)
