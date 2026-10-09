@@ -29,7 +29,7 @@ from utils import samples_unlearn_random, relearn_unlearn_samples, samples_enfor
 from experiment_utils import dataset_health
 #################  0 ######### 1 ######### 2 ######## 3 ###### 4 ########## 5
 dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes','criteo']
-dname=dname_all[0]
+dname=dname_all[4]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -134,7 +134,7 @@ for nprots in [1,2]:
         print('Acc=', acc)
     #glvq_copy=copy.copy(glvq)
     glvq_copy.fit(zXtrain, Ytrain)
-    training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain)}
+    training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain), 'normalization':'un-log'}
     ########################################################################################
     # Unlearning parameters to compare
     # * number of random samples to unlearn n=[1,5,20,30,50]
@@ -167,7 +167,6 @@ for nprots in [1,2]:
             zXretrain=zXtrain.iloc[relearn_indices]
             ########################################################################
             #Retraining 
-            
             ########################################################################
             if solver_type in ['sgd', 'wgd']:
                 glvq_partial1=GLVQ(distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,

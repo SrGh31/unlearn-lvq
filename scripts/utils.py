@@ -91,32 +91,57 @@ def samples_unlearn_outliers(trainset:pd.DataFrame,model:sklvq.models, thresh:fl
 def samples_enforce_random(trainset:pd.DataFrame, unlearn_indices:list, trainlabs:list):
     """
     """
-    nlabs=np.unique(trainlabs[unlearn_indices])
-    if len(unlearn_indices)==1:
-        searchset_indices=np.setdiff1d(list(np.where(trainlabs==trainlabs[unlearn_indices])[0]), unlearn_indices)
-        #trainset.loc[trainlabs==trainlabs[unlearn_indices]].copy()
-        enforce_indices=searchset_indices[np.random.randint(0, len(searchset_indices), size=1).tolist()]
-    elif len(nlabs)==1:
+    flag=0
+    if flag==1:
         n=len(unlearn_indices)
-        searchset_indices=np.setdiff1d(list(np.where(trainlabs==nlabs)[0]), unlearn_indices)
+        searchset_indices=np.setdiff1d(list(range(0,len(trainlabs))), unlearn_indices)
         within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
         enforce_indices=searchset_indices[within_class_sel]
     else:
-        #intializing container to store indices to enforce
-        enforce_indices=[]
-        for nlab in nlabs:
-            n=np.sum(trainlabs[unlearn_indices]==nlab)
-            searchset_indices=np.setdiff1d(list(np.where(trainlabs==nlab)[0]), unlearn_indices)
-            if len(searchset_indices)==1:
-                within_class_sel=list(np.random.randint(0, len(searchset_indices), size=1))
-            elif len(searchset_indices)<=n:
-                n=len(searchset_indices)
-                within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
-            else:
-                within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
-            perlab_indices=searchset_indices[within_class_sel]#.tolist()        
-            enforce_indices.append(perlab_indices)
-        enforce_indices=list(itertools.chain(*enforce_indices))
+        nlabs=np.unique(trainlabs[unlearn_indices])
+        if len(unlearn_indices)==1:
+            label_untrained=trainlabs[unlearn_indices]
+            # set aside the indices of training labels of the class to which the single 
+            # unlearned sample belonged to
+            label_searchset_indices=np.where(trainlabs==label_untrained)[0]
+            # from the set of indices corresponding to unlearned sample's class, randomly 
+            # select another sample to enforce with
+            #searchable_trainset_idx=np.where(trainlabs==trainlabs[unlearn_indices])[0]
+            searchset_indices=np.setdiff1d(list(label_searchset_indices), unlearn_indices)
+            #trainset.loc[trainlabs==trainlabs[unlearn_indices]].copy()
+            enforce_indices=searchset_indices[np.random.randint(0, len(searchset_indices), size=1).tolist()]
+        elif len(nlabs)==1:
+            n=len(unlearn_indices)
+            # As all samples unlearned have same label, hence use just the first one
+            # to identify the class to be enforced with
+            label_untrained=trainlabs[unlearn_indices[0]]
+            # set aside the indices of training labels of the class to which the single 
+            # unlearned sample belonged to
+            label_searchset_indices=np.where(trainlabs==label_untrained)[0]
+            # from the set of indices corresponding to unlearned sample's class, randomly 
+            # select another sample to enforce with
+            searchset_indices=np.setdiff1d(list(label_searchset_indices), unlearn_indices)
+            ##searchset_indices=np.setdiff1d(list(np.where(trainlabs==nlabs)[0]), unlearn_indices)
+            within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
+            enforce_indices=searchset_indices[within_class_sel]
+        else:
+            #intializing container to store indices to enforce
+            enforce_indices=[]
+            for nlab in nlabs:
+                n=np.sum(trainlabs[unlearn_indices]==nlab)
+                # from all indices where label corresponds to class-nLab, desselet all indices that were present 
+                # in the unlearned indices set 
+                searchset_indices=np.setdiff1d(list(np.where(trainlabs==nlab)[0]), unlearn_indices)
+                if len(searchset_indices)==1:
+                    within_class_sel=list(np.random.randint(0, len(searchset_indices), size=1))
+                elif len(searchset_indices)<=n:
+                    n=len(searchset_indices)
+                    within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
+                else:
+                    within_class_sel=list(np.random.randint(0, len(searchset_indices), size=n))
+                perlab_indices=searchset_indices[within_class_sel]#.tolist()        
+                enforce_indices.append(perlab_indices)
+            enforce_indices=list(itertools.chain(*enforce_indices))
     return enforce_indices, trainset.iloc[enforce_indices]
     
     

@@ -4,6 +4,7 @@ import scipy
 from sklearn.metrics import root_mean_squared_error
 import sklvq
 import os, sys
+import copy
 parts=os.getcwd().split('/')
 if parts[-1]=='notebooks':
     parts=parts[:-1]
@@ -26,82 +27,122 @@ def unlearn_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, unlearn_data:pd.Da
     We do not know yet whether unlearning from a model trained via a stochastic gradient descent or mini batch gradient descent would 
     work following the same scheme as ordering of samples play a crucial role in these. 
     """
+    ztol=10*(-4)
     if model.solver_type=='wgd':
         k=model.get_params()['solver_params']['k']
         max_iter=k
         max_runs=model.get_params()['solver_params']['max_runs']
+        step_size=model.get_params()['solver_params']['step_size'][0]
     elif model.solver_type=='sgd':
         print(model.solver_type)
         max_runs=model.get_params()['solver_params']['max_runs']
-        max_iter=max_runs
+        #max_iter=max_runs
+        step_size=model.get_params()['solver_params']['step_size'][0]#/2
+       # step_size = step_size / (1 + 1/ max_runs)
     else:
-        max_iter=1
-    max_iter, new_N, old_N=1, training_info['setsize']-len(unlearn_labels), training_info['setsize']
-    secure_copy=model.prototypes_.copy()
-    dist_same, dist_diff, i_dist_same, i_dist_diff=compute_distances(model, unlearn_data, unlearn_labels)
-    updated_prots=model.prototypes_.copy()
-    for iter in range(0, max_iter):   
-        for nprot in range(0,model.prototypes_labels_.shape[0]):
+        max_runs=1
+    max_runs=1
+    new_N, old_N= training_info['setsize']-len(unlearn_labels), training_info['setsize']
+    secure_copy=copy.deepcopy(model.prototypes_)
+    for iter in range(0, max_runs):   
+        updated_prots=copy.deepcopy(model.prototypes_)#.copy()
+        dist_same, dist_diff, i_dist_same, i_dist_diff=compute_distances(model, unlearn_data, unlearn_labels)
+        for nprot in range(0,model.prototypes_labels_.shape[0]):       
             prot_lab=model.prototypes_labels_[nprot]
-           # print(prot_lab, training_info['class_weight'])
-            initial_cw=training_info['class_weight'][prot_lab]
-            cw_new=initial_cw-np.sum(unlearn_labels==prot_lab)
-            prot=np.reshape(model.prototypes_[nprot].copy(), (1,model.prototypes_.shape[1]))
+            #gradient(dist_same: numpy.ndarray, dist_diff: numpy.ndarray, same_label: bool) → numpy.ndarray
             idx_same, idx_diff=np.where(i_dist_same==nprot)[0], np.where(i_dist_diff==nprot)[0]
-            get_grad_same=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
-                                                                   data=unlearn_data.iloc[idx_same], model=model, i_prototype=nprot)
-            get_grad_diff=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
-                                                                   data=unlearn_data.iloc[idx_diff], model=model, i_prototype=nprot)
+            get_grad_same_dist=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
+                                                    data=unlearn_data.iloc[idx_same], model=model, i_prototype=nprot)
+            get_grad_diff_dist=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
+                                                    data=unlearn_data.iloc[idx_diff], model=model, i_prototype=nprot)
+            get_grad_same_discr=sklvq.discriminants.RelativeDistance.gradient(sklvq.discriminants.RelativeDistance(), 
+                                                    dist_same=dist_same, dist_diff=dist_diff, same_label=True)
+            get_grad_diff_discr=sklvq.discriminants.RelativeDistance.gradient(sklvq.discriminants.RelativeDistance(), 
+                                                    dist_same=dist_same, dist_diff=dist_diff, same_label=False)
+            get_grad_same=(get_grad_same_discr[idx_same]*get_grad_same_dist.T).T
+            get_grad_diff=(get_grad_diff_discr[idx_diff]*get_grad_diff_dist.T).T
             if iter==0:
+                initial_cw=training_info['class_weight'][prot_lab]
+                cw_new=initial_cw-np.sum(unlearn_labels==prot_lab)
+                prot=np.reshape(model.prototypes_[nprot].copy(), (1,model.prototypes_.shape[1]))
                 if np.sum(unlearn_labels==prot_lab)>1:
                     prot_init_corr=(prot*initial_cw-unlearn_data.loc[unlearn_labels==prot_lab].sum(skipna=True).to_numpy())/cw_new
                     #prot_init_corr=prot-unlearn_data.loc[unlearn_labels==prot_lab].mean(skipna=True).to_numpy()#/cw_new
                 elif np.sum(unlearn_labels==prot_lab)==1:
                     prot_init_corr=(prot*initial_cw-unlearn_data.loc[unlearn_labels==prot_lab].to_numpy())/cw_new
                 else:
-                    prot_init_corr=model.prototypes_[nprot].copy()*0#*initial_cw/cw_new
+                    prot_init_corr=copy.deepcopy(model.prototypes_[nprot])*0#*initial_cw/cw_new
                 prot_init_corr=np.reshape(prot_init_corr, (1,model.prototypes_.shape[1]))
                 #updated_prots[nprot]=updated_prots[nprot]-prot_init_corr[0]
                 updated_prots[nprot]=prot_init_corr[0]#/cw_new
+            else:
+                updated_prots[nprot]=np.reshape(updated_prots[nprot], (1,model.prototypes_.shape[1]))
             if len(idx_same)>0:
                 if len(idx_same)==1:
-                    unlearn_grad_same=get_grad_same*unlearn_data.iloc[idx_same]
-                    unlearn_grad_same_sum=unlearn_grad_same.copy()
+                    if training_info['normalization']=='log':
+                        log_corr=unlearn_data.iloc[idx_same].transform(np.exp)#.copy()
+                        log_corr[log_corr==0]=ztol
+                        unlearn_grad_same=get_grad_same/log_corr
+                    else:
+                        unlearn_grad_same=copy.deepcopy(get_grad_same)#/unlearn_data.iloc[idx_same]
+                   # unlearn_grad_same_sum=unlearn_grad_same.copy()
                 else:
-                    unlearn_grad_same=get_grad_same.mean(skipna=True)*unlearn_data.iloc[idx_same].mean(skipna=True)
-                    unlearn_grad_dummy_same=get_grad_same*unlearn_data.iloc[idx_same]
-                    unlearn_grad_same_sum=np.sum(unlearn_grad_dummy_same, axis=0)
-                    del  unlearn_grad_dummy_same
+                    if training_info['normalization']=='log':
+                        log_corr=unlearn_data.iloc[idx_same].transform(np.exp)#.mean(skipna=True)
+                        log_corr[log_corr==0]=ztol
+                        unlearn_grad_same=get_grad_same/log_corr
+                        unlearn_grad_same=unlearn_grad_same.mean(skipna=True)
+                  #      unlearn_grad_dummy_same=get_grad_same/log_corr
+                    else:
+                        unlearn_grad_same=get_grad_same.mean(skipna=True)#*unlearn_data.iloc[idx_same].mean(skipna=True)
+                        unlearn_grad_dummy_same=get_grad_same#*unlearn_data.iloc[idx_same]
+                 #   unlearn_grad_same_sum=np.nansum(unlearn_grad_dummy_same, axis=0)
+                 #   del unlearn_grad_dummy_same
             else:
-                unlearn_grad_same_sum=np.zeros(np.shape(prot))
-                unlearn_grad_same=np.zeros(np.shape(prot))
+                unlearn_grad_same_sum=np.zeros(np.shape(updated_prots[nprot]))
+                unlearn_grad_same=np.zeros(np.shape(updated_prots[nprot]))
             if len(idx_diff)>0:
                 if len(idx_diff)==1:
-                    unlearn_grad_diff=get_grad_diff*unlearn_data.iloc[idx_diff]
-                    unlearn_grad_diff_sum=unlearn_grad_diff.copy()
+                    if training_info['normalization']=='log':
+                        log_corr=unlearn_data.iloc[idx_diff].transform(np.exp)#.copy()
+                        log_corr[log_corr==0]=ztol
+                        unlearn_grad_diff=get_grad_diff/log_corr
+                    else:
+                        unlearn_grad_diff=copy.deepcopy(get_grad_diff)#/unlearn_data.iloc[idx_diff]
+                #    unlearn_grad_diff_sum=unlearn_grad_diff.copy()
                 else:
-                    unlearn_grad_diff=get_grad_diff.mean(skipna=True)*unlearn_data.iloc[idx_diff].mean(skipna=True)
-                    unlearn_grad_dummy_diff=get_grad_diff*unlearn_data.iloc[idx_diff]
-                    unlearn_grad_diff_sum=np.sum(unlearn_grad_dummy_diff, axis=0)
-                    del  unlearn_grad_dummy_diff
+                    if training_info['normalization']=='log':
+                        log_corr=unlearn_data.iloc[idx_diff].transform(np.exp)#.mean(skipna=True)
+                        log_corr[log_corr==0]=ztol
+                        unlearn_grad_diff=get_grad_diff/log_corr#*unlearn_data.iloc[idx_diff].mean(skipna=True)
+                        unlearn_grad_diff=unlearn_grad_diff.mean(skipna=True)
+                       # unlearn_grad_dummy_diff=get_grad_diff/log_corr.mean(skipna=True)#*unlearn_data.iloc[idx_diff]
+                    else:
+                        unlearn_grad_diff=get_grad_diff.mean(skipna=True)#*unlearn_data.iloc[idx_diff].mean(skipna=True)
+                      #  unlearn_grad_dummy_diff=get_grad_diff#*unlearn_data.iloc[idx_diff]
+                    #unlearn_grad_diff_sum=np.sum(unlearn_grad_dummy_diff, axis=0)
+                   # del unlearn_grad_dummy_diff
             else:
-                unlearn_grad_diff_sum=np.zeros(np.shape(prot))
-                unlearn_grad_diff=np.zeros(np.shape(prot))
+                unlearn_grad_diff_sum=np.zeros(np.shape(updated_prots[nprot]))
+                unlearn_grad_diff=np.zeros(np.shape(updated_prots[nprot]))
             unlearn_grad_diff=np.reshape(unlearn_grad_diff, (1,model.prototypes_.shape[1]))
             unlearn_grad_same=np.reshape(unlearn_grad_same, (1,model.prototypes_.shape[1]))
             #unlearn_grad_diff_sum=np.reshape(unlearn_grad_diff_sum, (1,model.prototypes_.shape[1]))
             #unlearn_grad_same_sum=np.reshape(unlearn_grad_same_sum, (1,model.prototypes_.shape[1]))
             if model.get_params()['solver_type'] in ["sgd", "wgd"]:
-                updated_prots[nprot]=(updated_prots[nprot]-(unlearn_grad_diff-
-                                                            unlearn_grad_same)*model.get_params()['solver_params']['step_size'][0])*(old_N/new_N)
+                updated_prots[nprot]=(updated_prots[nprot]+(-unlearn_grad_diff+unlearn_grad_same)*step_size)#*(old_N/new_N)
             else:
            #    updated_prots[nprot]=(updated_prots[nprot]*initial_cw-(unlearn_grad_diff_sum-
            #                                                                 unlearn_grad_same_sum)*model.unlearn_rate_)/cw_new#
-                updated_prots[nprot]=(updated_prots[nprot]-(unlearn_grad_diff-
+                updated_prots[nprot]=(updated_prots[nprot]+(unlearn_grad_diff+
                                                                             unlearn_grad_same)*model.unlearn_rate_)*(old_N/new_N)
-            del unlearn_grad_diff, unlearn_grad_same, unlearn_grad_diff_sum, unlearn_grad_same_sum
-            del prot, prot_init_corr, cw_new, initial_cw
-    model.set_prototypes(updated_prots)
+            del unlearn_grad_diff, unlearn_grad_same, idx_same, idx_diff#, unlearn_grad_diff_sum, unlearn_grad_same_sum
+            if iter==0:
+                del prot, prot_init_corr, cw_new, initial_cw
+        model.set_prototypes(updated_prots)
+        #step_size/=2
+        step_size = step_size / (1 + iter/ max_runs)
+        del updated_prots,dist_same, dist_diff, i_dist_same, i_dist_diff
     #model.normalize_variables(model.prototypes_)
     return model
 
@@ -121,31 +162,45 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
     We do not know yet whether unlearning from a model trained via a stochastic gradient descent or mini batch gradient descent would 
     work following the same scheme as ordering of samples play a crucial role in these. 
     """
-    max_iter=1
     if adapt_type=='unlearn':
         adapt_factor=1
+        max_runs=1#model.get_params()['solver_params']['max_runs']
+        #max_iter=max_runs#
         step_size=model.get_params()['solver_params']['step_size'][0]
     else:
         adapt_factor=-1
-        step_size=model.get_params()['solver_params']['step_size'][0]/2
+        max_runs=1#model.get_params()['solver_params']['max_runs']#2
+        #max_=copy.copy(max_runs)
+        step_size=model.get_params()['solver_params']['step_size'][0]#*0.5
+        step_size = step_size / (1 + 1/ max_runs)
+        if model.get_params()['solver_type']=='lbgfs':
+            model.unlearn_rate_=model.unlearn_rate_
     new_N, old_N=training_info['setsize']-len(adapt_labels), training_info['setsize']
     secure_copy=model.prototypes_.copy()
-    dist_same, dist_diff, i_dist_same, i_dist_diff=compute_distances(model, adapt_data, adapt_labels)
-    updated_prots=model.prototypes_.copy()
-    for iter in range(0, max_iter):   
+  #   dist_same, dist_diff, i_dist_same, i_dist_diff=compute_distances(model, adapt_data, adapt_labels)
+  #   updated_prots=model.prototypes_.copy()
+    for iter in range(0, max_runs):   
+        updated_prots=copy.deepcopy(model.prototypes_)#.copy()
+        dist_same, dist_diff, i_dist_same, i_dist_diff=compute_distances(model, adapt_data, adapt_labels)
         for nprot in range(0,model.prototypes_labels_.shape[0]):
             prot_lab=model.prototypes_labels_[nprot]
             initial_cw=training_info['class_weight'][prot_lab]
-            cw_new=initial_cw-adapt_factor*np.sum(adapt_labels==prot_lab)
+            cw_new=initial_cw-adapt_factor*np.sum(adapt_labels==prot_lab) 
             prot=np.reshape(model.prototypes_[nprot].copy(), (1,model.prototypes_.shape[1]))
             idx_same, idx_diff=np.where(i_dist_same==nprot)[0], np.where(i_dist_diff==nprot)[0]
-            get_grad_same=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
-                                                                   data=adapt_data.iloc[idx_same], model=model, i_prototype=nprot)
-            get_grad_diff=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
-                                                                   data=adapt_data.iloc[idx_diff], model=model, i_prototype=nprot)
+            get_grad_same_dist=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
+                                                    data=adapt_data.iloc[idx_same], model=model, i_prototype=nprot)
+            get_grad_diff_dist=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
+                                                    data=adapt_data.iloc[idx_diff], model=model, i_prototype=nprot)
+            get_grad_same_discr=sklvq.discriminants.RelativeDistance.gradient(sklvq.discriminants.RelativeDistance(), 
+                                                    dist_same=dist_same, dist_diff=dist_diff, same_label=True)
+            get_grad_diff_discr=sklvq.discriminants.RelativeDistance.gradient(sklvq.discriminants.RelativeDistance(), 
+                                                    dist_same=dist_same, dist_diff=dist_diff, same_label=False)
+            get_grad_same=(get_grad_same_discr[idx_same]*get_grad_same_dist.T).T
+            get_grad_diff=(get_grad_diff_discr[idx_diff]*get_grad_diff_dist.T).T
         # Approximate difference between initialized prots from original data (class-conditional means) 
-        # and conditional means from adapt_data. The difference is then adjusted 
-        # (subtracted for unlearning, added for relearning) in the trained model's prototype.
+        # and conditional means from adapt_data. The difference is then adjusted (subtracted for 
+        # unlearning, added for relearning) in the trained model's prototype.
             if iter==0: 
                 if np.sum(adapt_labels==prot_lab)>1:
                     prot_init_corr=(prot*initial_cw-adapt_factor*adapt_data.loc[adapt_labels==prot_lab].sum(skipna=True).to_numpy())/cw_new
@@ -155,24 +210,26 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
                     prot_init_corr=model.prototypes_[nprot].copy()*0
                 prot_init_corr=np.reshape(prot_init_corr, (1,model.prototypes_.shape[1]))
                 updated_prots[nprot]=prot_init_corr[0]
+            else:
+                updated_prots[nprot]=np.reshape(model.prototypes_[nprot].copy(), (1,model.prototypes_.shape[1]))
             if len(idx_same)>0:
                 if len(idx_same)==1:
-                    adapt_grad_same=get_grad_same*adapt_data.iloc[idx_same]
+                    adapt_grad_same=get_grad_same#*adapt_data.iloc[idx_same]
                     adapt_grad_same_sum=adapt_grad_same.copy()
                 else:
-                    adapt_grad_same=get_grad_same.mean(skipna=True)*adapt_data.iloc[idx_same].mean(skipna=True)
-                    adapt_grad_dummy_same=get_grad_same*adapt_data.iloc[idx_same]
+                    adapt_grad_same=get_grad_same.mean(skipna=True)#*adapt_data.iloc[idx_same].mean(skipna=True)
+                    adapt_grad_dummy_same=get_grad_same#*adapt_data.iloc[idx_same]
                     adapt_grad_same_sum=np.sum(adapt_grad_dummy_same, axis=0)
                     del  adapt_grad_dummy_same
             else:
                 adapt_grad_same_sum,adapt_grad_same=np.zeros(np.shape(prot)), np.zeros(np.shape(prot))
             if len(idx_diff)>0:
                 if len(idx_diff)==1:
-                    adapt_grad_diff=get_grad_diff*adapt_data.iloc[idx_diff]
+                    adapt_grad_diff=get_grad_diff#*adapt_data.iloc[idx_diff]
                     adapt_grad_diff_sum=adapt_grad_diff.copy()
                 else:
-                    adapt_grad_diff=get_grad_diff.mean(skipna=True)*adapt_data.iloc[idx_diff].mean(skipna=True)
-                    adapt_grad_dummy_diff=get_grad_diff*adapt_data.iloc[idx_diff]
+                    adapt_grad_diff=get_grad_diff.mean(skipna=True)#*adapt_data.iloc[idx_diff].mean(skipna=True)
+                    adapt_grad_dummy_diff=get_grad_diff#*adapt_data.iloc[idx_diff]
                     adapt_grad_diff_sum=np.sum(adapt_grad_dummy_diff, axis=0)
                     del adapt_grad_dummy_diff
             else:
@@ -181,14 +238,15 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
             adapt_grad_diff=np.reshape(adapt_grad_diff, (1,model.prototypes_.shape[1]))
             adapt_grad_same=np.reshape(adapt_grad_same, (1,model.prototypes_.shape[1]))
             if model.get_params()['solver_type'] in ["sgd", "wgd"]:
-                updated_prots[nprot]=(updated_prots[nprot]-adapt_factor*(adapt_grad_diff-
-                                                            adapt_grad_same)*step_size)*(old_N/new_N)
+                updated_prots[nprot]=(updated_prots[nprot]+adapt_factor*((adapt_grad_diff-
+                                                            adapt_grad_same)*step_size))#*(old_N/new_N)                
             else:
-                updated_prots[nprot]=(updated_prots[nprot]-adapt_factor*(adapt_grad_diff-
+                updated_prots[nprot]=(updated_prots[nprot]-adapt_factor*(-adapt_grad_diff+
                                                                             adapt_grad_same)*model.unlearn_rate_)*(old_N/new_N)
             del adapt_grad_diff, adapt_grad_same, adapt_grad_diff_sum, adapt_grad_same_sum
-            del prot, prot_init_corr, cw_new, initial_cw
-    model.set_prototypes(updated_prots)
+        model.set_prototypes(updated_prots)
+    step_size = step_size / (1 + iter/ max_runs)
+    del prot, prot_init_corr, cw_new, initial_cw
     return model
 
 def unlearn_relearn_sample_glvq(model:sklvq.models._glvq.GLVQ, data_dict: dict, label_dict: dict,

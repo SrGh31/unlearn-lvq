@@ -41,7 +41,7 @@ beta_dname={'breastcancer':[5,5], 'surgical': [15,5], 'banking': [18,20], 'adult
 import logging
 logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('basic_logger')
-logfilename='%s/logs/info_enforce_random_%s_swish.log'%(common_path, dname)
+logfilename='%s/logs/info_enforce_random_%s_id.log'%(common_path, dname)
 print(logfilename)
 logging.basicConfig(level=logging.INFO,
     filename=logfilename,# format=fmt,

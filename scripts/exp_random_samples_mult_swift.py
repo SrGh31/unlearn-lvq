@@ -74,13 +74,13 @@ if flag==0:
             ]
         zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
     elif dname=='breastcancer':
-        nopts=[1,5,20,30,50,100]
+        nopts=[2,5,20,30,50,100]
     elif dname=='criteo':
         nopts=np.ceil(np.array([0.0001, 0.01, 0.1, 0.2])*len(Ytrain)).astype(np.int32)
     else:
         print('No feature preset reqd')
 if dname=='breastcancer':
-    nopts=[1,5,20,30,50,100]
+    nopts=[2,5,20,30,50,100]
 elif dname=='criteo':
     nopts=np.ceil(np.array([0.0001, 0.01, 0.1])*len(Ytrain)).astype(np.int32)
 else:
@@ -98,7 +98,7 @@ dist_name, activation_type="squared-euclidean", "swish",# "identity"
 solver_type, solver_params="sgd", {"max_runs": max_runs, "step_size": step_size, # "k": 3,
 }
 print(dname, ' random ', solver_type)
-for nprots in [1]:#,2]:
+for nprots in [1,2]:
     nprots_per_class=nprots
     activation_params={"beta": beta_dname[dname][nprots-1]}
     while flag==1:
@@ -133,7 +133,7 @@ for nprots in [1]:#,2]:
         print('Acc=', acc)
     #glvq_copy=copy.copy(glvq)
     glvq_copy.fit(zXtrain, Ytrain)
-    training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain)}
+    training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain), 'normalization':'un-log'}
     ########################################################################################
     # Unlearning parameters to compare
     # * number of random samples to unlearn n=[1,5,20,30,50]
@@ -265,12 +265,12 @@ for nprots in [1]:#,2]:
             else:
                 temp= pd.DataFrame.from_dict(data=compare_dict, orient='index').T
                 compare_df=pd.concat([compare_df, temp])
-            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_swish_%s_all.csv'%(dname, dname,solver_type), index=False, sep='\t')
+            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_swish_%s_all1.csv'%(dname, dname,solver_type), index=False, sep='\t')
         retrained_n[cint]={'n':n, 'models':retrained_iter}
         unlearned_n[cint]={'n':n, 'models': unlearned_iter}
         cint+=1     
     model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-    picklefilename='%s%s/%s_random_swish_%s_nprot%d0.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    picklefilename='%s%s/%s_random_swish_%s_nprot%d1.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
     print('Print picklefile path\n', picklefilename)
     with open(picklefilename, 'wb') as file:
         pickle.dump(model_sets, file)
