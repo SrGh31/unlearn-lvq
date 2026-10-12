@@ -41,7 +41,7 @@ def unlearn_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, unlearn_data:pd.Da
        # step_size = step_size / (1 + 1/ max_runs)
     else:
         max_runs=1
-    max_runs=1
+    max_runs=2
     new_N, old_N= training_info['setsize']-len(unlearn_labels), training_info['setsize']
     secure_copy=copy.deepcopy(model.prototypes_)
     for iter in range(0, max_runs):   
@@ -58,9 +58,24 @@ def unlearn_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, unlearn_data:pd.Da
             get_grad_same_discr=sklvq.discriminants.RelativeDistance.gradient(sklvq.discriminants.RelativeDistance(), 
                                                     dist_same=dist_same, dist_diff=dist_diff, same_label=True)
             get_grad_diff_discr=sklvq.discriminants.RelativeDistance.gradient(sklvq.discriminants.RelativeDistance(), 
-                                                    dist_same=dist_same, dist_diff=dist_diff, same_label=False)
-            get_grad_same=(get_grad_same_discr[idx_same]*get_grad_same_dist.T).T
-            get_grad_diff=(get_grad_diff_discr[idx_diff]*get_grad_diff_dist.T).T
+                                                    dist_same=dist_same, dist_diff=dist_diff, same_label=False)      
+            #get_grad_same=(get_grad_same_discr[idx_same]*get_grad_same_dist.T).T
+            #get_grad_diff=(get_grad_diff_discr[idx_diff]*get_grad_diff_dist.T).T
+            if model.activation_type=='swish':
+                get_activation_grad=sklvq.activations.Swish.gradient(sklvq.activations.Swish(model.activation_params['beta']), unlearn_data)
+                get_grad_same=(get_grad_same_discr[idx_same]*get_activation_grad.iloc[idx_same].T).T*get_grad_same_dist
+                get_grad_diff=(get_grad_diff_discr[idx_diff]*get_activation_grad.iloc[idx_diff].T).T*get_grad_diff_dist
+            elif model.activation_type=='sigmoid':
+                get_activation_grad=sklvq.activations.Sigmoid.gradient(sklvq.activations.Sigmoid(model.activation_params['beta']), unlearn_data)
+                get_grad_same=(get_grad_same_discr[idx_same]*get_activation_grad.iloc[idx_same].T).T*get_grad_same_dist
+                get_grad_diff=(get_grad_diff_discr[idx_diff]*get_activation_grad.iloc[idx_diff].T).T*get_grad_diff_dist
+            elif model.activation_type=='identity':
+                get_grad_same=(get_grad_same_discr[idx_same]*get_grad_same_dist.T).T
+                get_grad_diff=(get_grad_diff_discr[idx_diff]*get_grad_diff_dist.T).T
+            else:
+                print('Error: Not yet implemented, hence going with identity')
+                get_grad_same=(get_grad_same_discr[idx_same]*get_grad_same_dist.T).T
+                get_grad_diff=(get_grad_diff_discr[idx_diff]*get_grad_diff_dist.T).T
             if iter==0:
                 initial_cw=training_info['class_weight'][prot_lab]
                 cw_new=initial_cw-np.sum(unlearn_labels==prot_lab)
@@ -127,15 +142,19 @@ def unlearn_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, unlearn_data:pd.Da
                 unlearn_grad_diff=np.zeros(np.shape(updated_prots[nprot]))
             unlearn_grad_diff=np.reshape(unlearn_grad_diff, (1,model.prototypes_.shape[1]))
             unlearn_grad_same=np.reshape(unlearn_grad_same, (1,model.prototypes_.shape[1]))
+         #   print('Update diff for nprot-',nprot, ' : ', unlearn_grad_diff)
+         #   print('Update same for nprot-',nprot, ' : ', unlearn_grad_same)
             #unlearn_grad_diff_sum=np.reshape(unlearn_grad_diff_sum, (1,model.prototypes_.shape[1]))
             #unlearn_grad_same_sum=np.reshape(unlearn_grad_same_sum, (1,model.prototypes_.shape[1]))
             if model.get_params()['solver_type'] in ["sgd", "wgd"]:
-                updated_prots[nprot]=(updated_prots[nprot]+(-unlearn_grad_diff+unlearn_grad_same)*step_size)#*(old_N/new_N)
+                # As unlearning goes in the direction opposite to that of in training, here the gradientX step_size is 
+                # being added to the old parameter instead of being subtracted
+                updated_prots[nprot]=(updated_prots[nprot]+(unlearn_grad_diff+unlearn_grad_same)*step_size)#*(old_N/new_N)
             else:
            #    updated_prots[nprot]=(updated_prots[nprot]*initial_cw-(unlearn_grad_diff_sum-
            #                                                                 unlearn_grad_same_sum)*model.unlearn_rate_)/cw_new#
                 updated_prots[nprot]=(updated_prots[nprot]+(unlearn_grad_diff+
-                                                                            unlearn_grad_same)*model.unlearn_rate_)*(old_N/new_N)
+                                                                            unlearn_grad_same)*model.unlearn_rate_)#*(old_N/new_N)
             del unlearn_grad_diff, unlearn_grad_same, idx_same, idx_diff#, unlearn_grad_diff_sum, unlearn_grad_same_sum
             if iter==0:
                 del prot, prot_init_corr, cw_new, initial_cw
@@ -188,6 +207,7 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
             cw_new=initial_cw-adapt_factor*np.sum(adapt_labels==prot_lab) 
             prot=np.reshape(model.prototypes_[nprot].copy(), (1,model.prototypes_.shape[1]))
             idx_same, idx_diff=np.where(i_dist_same==nprot)[0], np.where(i_dist_diff==nprot)[0]
+            get_activation_grad=sklvq.activations.Swish.gradient(sklvq.activations.Swish(), adapt_data)
             get_grad_same_dist=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
                                                     data=adapt_data.iloc[idx_same], model=model, i_prototype=nprot)
             get_grad_diff_dist=sklvq.distances.SquaredEuclidean.gradient(sklvq.distances.SquaredEuclidean(), 
@@ -196,8 +216,10 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
                                                     dist_same=dist_same, dist_diff=dist_diff, same_label=True)
             get_grad_diff_discr=sklvq.discriminants.RelativeDistance.gradient(sklvq.discriminants.RelativeDistance(), 
                                                     dist_same=dist_same, dist_diff=dist_diff, same_label=False)
-            get_grad_same=(get_grad_same_discr[idx_same]*get_grad_same_dist.T).T
-            get_grad_diff=(get_grad_diff_discr[idx_diff]*get_grad_diff_dist.T).T
+            get_grad_same=(get_grad_same_discr[idx_same]*get_activation_grad.iloc[idx_same].T).T*get_grad_same_dist
+            get_grad_diff=(get_grad_diff_discr[idx_diff]*get_activation_grad.iloc[idx_diff].T).T*get_grad_diff_dist
+            #get_grad_same=(get_grad_same_discr[idx_same]*get_grad_same_dist.T).T
+            #get_grad_diff=(get_grad_diff_discr[idx_diff]*get_grad_diff_dist.T).T
         # Approximate difference between initialized prots from original data (class-conditional means) 
         # and conditional means from adapt_data. The difference is then adjusted (subtracted for 
         # unlearning, added for relearning) in the trained model's prototype.
@@ -238,10 +260,13 @@ def adapt_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, adapt_data:pd.DataFr
             adapt_grad_diff=np.reshape(adapt_grad_diff, (1,model.prototypes_.shape[1]))
             adapt_grad_same=np.reshape(adapt_grad_same, (1,model.prototypes_.shape[1]))
             if model.get_params()['solver_type'] in ["sgd", "wgd"]:
-                updated_prots[nprot]=(updated_prots[nprot]+adapt_factor*((adapt_grad_diff-
+                # As unlearning goes in the direction opposite to that of in training, here the gradientX step_size is 
+                # being added to the old parameter instead of being subtracted. In case of enforcing the adapt_factor=-1, 
+                # which reorients the gradient steps in the direction of the original training direction
+                updated_prots[nprot]=(updated_prots[nprot]+adapt_factor*((adapt_grad_diff+
                                                             adapt_grad_same)*step_size))#*(old_N/new_N)                
             else:
-                updated_prots[nprot]=(updated_prots[nprot]-adapt_factor*(-adapt_grad_diff+
+                updated_prots[nprot]=(updated_prots[nprot]+adapt_factor*(adapt_grad_diff+
                                                                             adapt_grad_same)*model.unlearn_rate_)*(old_N/new_N)
             del adapt_grad_diff, adapt_grad_same, adapt_grad_diff_sum, adapt_grad_same_sum
         model.set_prototypes(updated_prots)

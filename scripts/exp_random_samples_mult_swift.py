@@ -29,7 +29,7 @@ from utils import samples_unlearn_random
 from experiment_utils import dataset_health
 #################  0 ######### 1 ######### 2 ######## 3 ###### 4 ########## 5
 dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes','criteo']
-dname=dname_all[5]
+dname=dname_all[1]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -107,13 +107,14 @@ for nprots in [1,2]:
                 distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,
                 prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type, solver_params=solver_params)
-            if dname=='criteo':
-                glvq_copy=copy.deepcopy(glvq)
-            else:
-                glvq_copy=GLVQ(
-                    distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
-                    prototype_n_per_class=nprots_per_class,
-                    solver_type=solver_type, solver_params=solver_params)
+            
+#            if dname=='criteo':
+#                glvq_copy=copy.deepcopy(glvq)
+#            else:
+#                glvq_copy=GLVQ(
+#                    distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
+#                    prototype_n_per_class=nprots_per_class,
+#                    solver_type=solver_type, solver_params=solver_params)
         else:
             glvq= GLVQ(
                 distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
@@ -123,7 +124,6 @@ for nprots in [1,2]:
                 distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
                 prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type)
-    
         glvq.fit(zXtrain, Ytrain)
         acc=balanced_accuracy_score(Ytrain, glvq.predict(zXtrain))
         if acc<0.55:
@@ -131,8 +131,8 @@ for nprots in [1,2]:
         else:
             flag=0
         print('Acc=', acc)
-    #glvq_copy=copy.copy(glvq)
-    glvq_copy.fit(zXtrain, Ytrain)
+    glvq_copy=copy.copy(glvq)
+   # glvq_copy.fit(zXtrain, Ytrain)
     training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain), 'normalization':'un-log'}
     ########################################################################################
     # Unlearning parameters to compare
