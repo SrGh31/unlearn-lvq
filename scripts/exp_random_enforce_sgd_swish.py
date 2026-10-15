@@ -23,13 +23,13 @@ resultspath=common_path+'/results/'
 modelpath=common_path+'/models/'
 from experiment_utils import data_norm_log
 from unlearning.unlearn_eval import *
-from unlearning.unlearn_lvq import unlearn_sample_effect_glvq, unlearn_relearn_sample_glvq
+from unlearning.unlearn_lvq_modular import update_sample_effect_glvq
 from utils import samples_unlearn_random, relearn_unlearn_samples, samples_enforce_random
 # || Dataset name: Breast cancer data ||
 from experiment_utils import dataset_health
 #################  0 ######### 1 ######### 2 ######## 3 ###### 4 ########## 5
 dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes','criteo']
-dname=dname_all[4]
+dname=dname_all[5]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
@@ -41,7 +41,7 @@ beta_dname={'breastcancer':[5,5], 'surgical': [15,5], 'banking': [18,20], 'adult
 import logging
 logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('basic_logger')
-logfilename='%s/logs/info_enforce_random_%s_swish.log'%(common_path, dname)
+logfilename='%s/logs/info_stable_enf_random_%s_swish.log'%(common_path, dname)
 print(logfilename)
 logging.basicConfig(level=logging.INFO,
     filename=logfilename,# format=fmt,
@@ -74,13 +74,13 @@ if flag==0:
             ]
         zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
     elif dname=='breastcancer':
-        nopts=[1,5,20,30,50,100]
+        nopts=[2,5,20,30,50,100]
     elif dname=='criteo':
         nopts=np.ceil(np.array([0.0001, 0.01, 0.1, 0.2])*len(Ytrain)).astype(np.int32)
     else:
         print('No feature preset reqd')
 if dname=='breastcancer':
-    nopts=[1,5,20,30,50,100]
+    nopts=[2,5,20,30,50,100]
 elif dname=='criteo':
     nopts=np.ceil(np.array([0.0001, 0.01, 0.1])*len(Ytrain)).astype(np.int32)
 else:
@@ -97,7 +97,7 @@ else:
 dist_name, activation_type="squared-euclidean", "swish",# "identity"
 solver_type, solver_params="sgd", {"max_runs": max_runs, "step_size": step_size, # "k": 3,
 }
-print(dname, ' random ', solver_type)
+
 for nprots in [1,2]:
     nprots_per_class, cint=nprots, 0
     activation_params={"beta": beta_dname[dname][nprots-1]}
@@ -108,23 +108,11 @@ for nprots in [1,2]:
                 distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,
                 prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type, solver_params=solver_params)
-            if dname=='criteo':
-                glvq_copy=copy.deepcopy(glvq)
-            else:
-                glvq_copy=GLVQ(
-                    distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
-                    prototype_n_per_class=nprots_per_class,
-                    solver_type=solver_type, solver_params=solver_params)
         else:
             glvq= GLVQ(
                 distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
                 prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type)
-            glvq_copy=GLVQ(
-                distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
-                prototype_n_per_class=nprots_per_class,
-                solver_type=solver_type)
-    
         glvq.fit(zXtrain, Ytrain)
         acc=balanced_accuracy_score(Ytrain, glvq.predict(zXtrain))
         if acc<0.55:
@@ -132,29 +120,22 @@ for nprots in [1,2]:
         else:
             flag=0
         print('Acc=', acc)
-    #glvq_copy=copy.copy(glvq)
-    glvq_copy.fit(zXtrain, Ytrain)
     training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain), 'normalization':'un-log'}
     ########################################################################################
     # Unlearning parameters to compare
     # * number of random samples to unlearn n=[1,5,20,30,50]
     for n in nopts:
-       # logging.info('cint=%d, nprots=%d, n=%d'%(cint, nprots, n))
-        glvq_copy=copy.deepcopy(glvq)
-        if cint==0:
-            glvq_copy.secure_prototypes_=glvq.prototypes_.copy()
-        else:
-            glvq_copy.prototypes_=glvq.prototypes_.copy()
-        dev00, max_dev_indx0=compare_fidelity_glvq(glvq, glvq_copy)
-        if dev00>=0.000001:
-            logging.info('WARNING: Non-zero deviation before unlearning started: dev=%0.03f'%dev00)
-        else:
-            logging.info('CLEAR: Zero deviation at baseline')
         retrained_iter, adjusted_iter={},{}
         for iter in iterations:
             random_learn_set=samples_unlearn_random(Xtrain, Ytrain, n,0) 
             #if iter>0:
             glvq_copy=copy.deepcopy(glvq) #.prototypes_.copy()
+            dev00, max_dev_indx00=compare_fidelity_glvq(glvq, glvq_copy)
+            if dev00>=0.000001:
+                print('WARNING: Non-zero deviation before unlearning started: dev=%0.03f'%dev00)
+            else:
+                print('CLEAR: Zero deviation at baseline')
+            #print('After retraining: Deviation between original and retrained models:', dev01)
             unlearn_indices,relearn_indices=random_learn_set['unlearn_indices'], random_learn_set['relearn_indices']
             unlearn_samples,relearn_samples=random_learn_set['unlearn_samples'], random_learn_set['relearn_samples']
             unlearn_labs,relearn_labs=random_learn_set['unlearn_labs'], random_learn_set['relearn_labs']
@@ -190,7 +171,7 @@ for nprots in [1,2]:
             print('Unlearned samples perf: before unlearn',perf_before_unlearn)
             #################################################################################################
             #Unlearning
-            #########################################
+            #########################################deviation_ylims[dname]
             adapt_action=list(['unlearn','enforce'])
             adj_data_dict={'unlearn_data': zXtrain.iloc[unlearn_indices], 'enforce_data': zXtrain.iloc[enforce_indices]
                           }
@@ -203,20 +184,21 @@ for nprots in [1,2]:
                 print('Appropriate step size for gradient ascent with %s is being searched using relearning set'%solver_type)
                 for idx, grad_step in enumerate(grad_step_sizes):
                     glvq_copy.unlearn_rate_=grad_step
-                    updated_model_attempt, cont_stats_attempt=unlearn_relearn_sample_glvq(glvq_copy,
+                    updated_model_attempt, cont_stats_attempt=update_sample_effect_glvq(glvq_copy,
                                                 adj_data_dict, adj_label_dict,adapt_action, training_info)
                     perf123=compare_perf_3(glvq, glvq_partial1, updated_model_attempt, data_dict, relearn_labs)
                     # ideal scenario:
                     # accuracy of retrained model (M1) should be less than that of unlearned model (M2) 
                     acc_diff[idx]=perf123['M0_Bacc']-perf123['M2_Bacc'] 
-                    glvq_copy.prototypes_=glvq.prototypes_.copy()
+                    glvq_copy=copy.deepcopy(glvq)
                 sorted_idx=np.argsort(acc_diff)
                 print('Appropriate step size for gradient ascent with %s is %.3f'%(solver_type, grad_step_sizes[sorted_idx[0]]))
                 glvq_copy.unlearn_rate_=grad_step_sizes[sorted_idx[0]]
             # Unlearning of sample effects
             st_un=time.time()
-            adjusted_model,cont_stats_change=unlearn_relearn_sample_glvq(glvq_copy, adj_data_dict, adj_label_dict, 
-                                                                         adapt_action, training_info)       
+            adjusted_model,cont_stats_change=update_sample_effect_glvq(glvq_copy, adj_data_dict, adj_label_dict, 
+                                                                       #  adapt_action, 
+                                                                       training_info)       
             elapsed_untrain=(time.time()-st_un)/60
             #########################################
             adjusted_iter[iter]={'model': copy.deepcopy(adjusted_model), 'model_prots':adjusted_model.prototypes_.copy(),
@@ -274,16 +256,17 @@ for nprots in [1,2]:
             else:
                 temp= pd.DataFrame.from_dict(data=compare_dict, orient='index').T
                 compare_df=pd.concat([compare_df, temp])
-            compare_df.to_csv(resultspath+'%s/%s_random_enforced_unlearn_swish_%s_all.csv'%(dname, dname,solver_type), index=False, sep='\t')
+            compare_df.to_csv(resultspath+'%s/%s_random_stable_enf_unlearn_swish_%s.csv'%(dname, dname,solver_type), index=False, sep='\t')
+            del glvq_copy
         retrained_n[cint]={'n':n, 'models':retrained_iter}
         adjusted_n[cint]={'n':n, 'models': adjusted_iter}
-        cint+=1
+        cint+=1       
             #unlearn_enforce
     model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned':adjusted_n}
-    picklefilename='%s%s/%s_random_enforced_swish_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    picklefilename='%s%s/%s_random_stable_enf_swish_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
     print('Print picklefile path\n', picklefilename)
     with open(picklefilename, 'wb') as file:
         pickle.dump(model_sets, file)
-    del model_sets, retrained_n, adjusted_n, glvq, glvq_copy#, compare_df
+    del model_sets, retrained_n, adjusted_n, glvq#, glvq_copy#, compare_df
     flag=1
     print(dname, ' Num prots: ', nprots_per_class, ' solver_type ', solver_type)

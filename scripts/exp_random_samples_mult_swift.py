@@ -29,8 +29,9 @@ from utils import samples_unlearn_random
 from experiment_utils import dataset_health
 #################  0 ######### 1 ######### 2 ######## 3 ###### 4 ########## 5
 dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes','criteo']
-dname=dname_all[1]
+dname=dname_all[2]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
+print('Data imported')
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
 ###########################################
@@ -131,7 +132,7 @@ for nprots in [1,2]:
         else:
             flag=0
         print('Acc=', acc)
-    glvq_copy=copy.copy(glvq)
+    #glvq_copy=copy.deepcopy(glvq)
    # glvq_copy.fit(zXtrain, Ytrain)
     training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain), 'normalization':'un-log'}
     ########################################################################################
@@ -142,10 +143,10 @@ for nprots in [1,2]:
     for n in nopts:
        # logging.info('cint=%d, nprots=%d, n=%d'%(cint, nprots, n))
         glvq_copy=copy.deepcopy(glvq)
-        if cint==0:
-            glvq_copy.secure_prototypes_=glvq.prototypes_.copy()
-        else:
-            glvq_copy.prototypes_=glvq.prototypes_.copy()
+        #if cint==0:
+        #    glvq_copy.secure_prototypes_=glvq.prototypes_.copy()
+        #else:
+        #    glvq_copy.prototypes_=glvq.prototypes_.copy()
         dev00, max_dev_indx0=compare_fidelity_glvq(glvq, glvq_copy)
         if dev00>=0.000001:
             logging.info('WARNING: Non-zero deviation before unlearning started: dev=%0.03f'%dev00)
@@ -265,12 +266,12 @@ for nprots in [1,2]:
             else:
                 temp= pd.DataFrame.from_dict(data=compare_dict, orient='index').T
                 compare_df=pd.concat([compare_df, temp])
-            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_swish_%s_all1.csv'%(dname, dname,solver_type), index=False, sep='\t')
+            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_swish_%s_all_lr.csv'%(dname, dname,solver_type), index=False, sep='\t')
         retrained_n[cint]={'n':n, 'models':retrained_iter}
         unlearned_n[cint]={'n':n, 'models': unlearned_iter}
         cint+=1     
     model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-    picklefilename='%s%s/%s_random_swish_%s_nprot%d1.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    picklefilename='%s%s/%s_random_swish_%s_nprot%d_lr.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
     print('Print picklefile path\n', picklefilename)
     with open(picklefilename, 'wb') as file:
         pickle.dump(model_sets, file)

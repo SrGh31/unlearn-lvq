@@ -51,7 +51,15 @@ def plot_model_deviations(exp_type:str,deviation_ylims:dict, fig_dict:dict, row_
         figD, axD= plt.subplots(nrows=2, ncols=int(len(dname_all)/2),figsize=(5,3), dpi=100, layout="constrained")
     
     for dname in dname_all:
-        metapath='%s%s/%s_random_unlearn_swish_%s_all1.csv'%(srcpath,dname, dname,solver_type)
+        if exp_type=='random':
+            metapath='%s%s/%s_%s_unlearn_swish_%s_all1.csv'%(srcpath,dname, dname,exp_type, solver_type)
+        elif exp_type=='random_stable_enf':
+            metapath='%s%s/%s_%s_unlearn_swish_%s.csv'%(srcpath,dname, dname,exp_type,solver_type)
+        else:
+            if 'metapath' in fig_dict:
+                metapath=fig_dict['metapath']
+            else:
+                print('Add path to csv file in metapath item in fig_dict dictionary and re-run')
         res_df=pd.read_csv(metapath, sep='\t')
         res_df.rename(columns={'n_unlearn':'n_unlearned'}, inplace=True)
         combined=eval_perf_metrics(res_df)
@@ -85,6 +93,8 @@ def plot_model_deviations(exp_type:str,deviation_ylims:dict, fig_dict:dict, row_
         figD.supylabel('Deviation b/w parameters of M1 & M2 wrt M0', fontsize=fs)
         if exp_type=='random_enforced':
             filename='%sdeviationM1M2_swish_enforced_%s.pdf'%(figpath, solver_type)
+        elif exp_type=='random_stable_enf':
+            filename='%sdeviationM1M2_swish_%s_%s.pdf'%(figpath,exp_type, solver_type)
         else:
             filename='%sdeviationM1M2_swish_%s.pdf'%(figpath, solver_type)
         figD.savefig(filename, dpi=100, bbox_inches="tight", pad_inches=0.01)
@@ -133,6 +143,8 @@ def plot_model_speedup(exp_type:str,speedup_ylims:dict, fig_dict:dict, row_col_m
         figS.supylabel(r'Speed-up factor ($\frac{\text{Time taken to retrain}}{\text{Time taken to unlearn}}$)', fontsize=fs)
         if exp_type=='random_enforced':
             filename='%sspeedup_swish-enforced_%s.pdf'%(figpath, solver_type)
+        elif exp_type=='random_stable_enf':
+            filename='%sspeedup_swish%s_%s.pdf'%(figpath, solver_type, exp_type)
         else:
             filename='%sspeedup_swish%s.pdf'%(figpath, solver_type)
         figS.savefig(filename, dpi=100, bbox_inches="tight", pad_inches=0.01)
@@ -159,6 +171,7 @@ def plot_perf_per_df(dname:str, consolidated:pd.DataFrame, fig_dict:dict):
     marker, linestyle, lcolor, alpha=fig_dict['marker'],fig_dict['linestyle'],fig_dict['lcolor'], fig_dict['alpha']
     legend_loc, legend_ncols=fig_dict['legend_loc'],fig_dict['legend_ncols']
     legend_propsize, legend_box=fig_dict['legend_propsize'], fig_dict['legend_box']
+    exp_type=fig_dict['exp_type']
     ylims_all=fig_dict['ylims_all']
     fig0, ax0= plt.subplots(nrows=nrows, ncols=ncols, sharex=True, figsize=(figsize[0],figsize[1]), layout="constrained")    
     nprots_all=np.sort(consolidated['ppc'].unique())
@@ -205,9 +218,9 @@ def plot_perf_per_df(dname:str, consolidated:pd.DataFrame, fig_dict:dict):
     fig0.supxlabel(r'Batch size of $\mathcal{D}^f$ (in log scale) $\rightarrow$', fontsize=fs+1)
     fig0.suptitle(dname.capitalize(), fontsize=fs+1)
     if 'suffix' in fig_dict:
-        filename='%sperf_swish_wrt_M0_%s_%s_%s.pdf'%(figpath, dname, solver_type, fig_dict['suffix'])
+        filename='%sperf_swish_wrt_M0_%s_%s_%s_%s.pdf'%(figpath, dname, solver_type,exp_type, fig_dict['suffix'])
     else:
-        filename='%sperf_swish_wrt_M0_%s_%s.pdf'%(figpath, dname, solver_type)
+        filename='%sperf_swish_wrt_M0_%s_%s_%s.pdf'%(figpath, dname, solver_type, exp_type)
     fig0.savefig(filename, dpi=100, bbox_inches="tight", pad_inches=0.01)
 
 
@@ -227,7 +240,7 @@ def plot_prototypes_compare(dname:str, model_dict:dict, fig_dict:dict):
     feature_names=Xtrain.columns
 #    zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
     ###################################################################
-    # importing the spedific models 
+    # importing the specific models 
     ####################################################################  
     ppc, exp_type=model_dict['ppc'], model_dict['exp_type']
     forget_retained=import_model_utils(dname,model_dict)  
@@ -267,7 +280,7 @@ def plot_prototypes_compare(dname:str, model_dict:dict, fig_dict:dict):
         #prot_group[['M0','M1', 'M2']]=(prot_group[['M0','M1', 'M2']]-prot_group[['M0','M1', 'M2']].mean())/prot_group[['M0','M1', 'M2']].std()
         prot_group.plot.bar(ax=ax5[i], color=lcols, edgecolor=['k','k','k'])
         ax5[i].axhline(y=0.0, c="blue",linewidth=lw,zorder=0)
-        ax5[i].set_ylabel('P-%d'%(i+1), fontsize=fs) 
+        ax5[i].set_ylabel('P-%d'%(i), fontsize=fs) 
         ax5[i].set_yticks(np.arange(ylims[0], ylims[1]+1, 2.0))
         ax5[i].tick_params(axis='both', which='minor', labelsize=fs-3)
         ax5[i].yaxis.set_tick_params(labelsize=fs-3)
@@ -283,7 +296,7 @@ def plot_prototypes_compare(dname:str, model_dict:dict, fig_dict:dict):
                bbox_to_anchor=(legend_box[0], legend_box[1]))
     fig5.suptitle('Original, retrained and unlearned GLVQ models on %s dataset'%dname, fontsize=fs)
     if 'suffix' in fig_dict:
-        filename='%s%s_devProtsM0M1M2_swish_%s_nprot%d_%s.pdf'%(figpath,dname, solver_type, ppc, fig_dict['suffix'])
+        filename='%s%s_%s_devProtsM0M1M2_swish_%s_nprot%d_samples%d_%s.pdf'%(figpath,dname, exp_type, solver_type, ppc, n,fig_dict['suffix'])
     else:
         filename='%s%s_%s_devProtsM0M1M2_swish_%s_nprot%d_samples%d.pdf'%(figpath,dname, exp_type, solver_type, ppc,n)
     fig5.savefig(filename, dpi=100, bbox_inches="tight", pad_inches=0.01)

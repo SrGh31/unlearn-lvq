@@ -170,7 +170,7 @@ def compare_model_params_prot(dname:str, exp_type:str,nprots_per_class:int,model
     M0, M1, M2=forget_retained['M0'],forget_retained['M1'],forget_retained['M2']
     unlearn_indices=forget_retained['unlearned']
     zXunlearn, Yunlearn=zXtrain.iloc[unlearn_indices], Ytrain[unlearn_indices]
-    print('Class distribution in the forget set: ', Counter(Yunlearn))
+    print('Class distribution in the forget set: ', Counter(Yunlearn), unlearn_indices)
     idx=0
     if model_dict['ppc']==1:
         prot_group_dummy=pd.DataFrame(data=np.array([Xtrain.columns,

@@ -27,12 +27,12 @@ from utils import samples_unlearn_outliers, relearn_unlearn_samples
 from experiment_utils import dataset_health
 ##############  0 ######### 1 ####### 2 ######## 3 ###### 4 ########## 5
 dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes', 'criteo']
-dname=dname_all[5]
+dname=dname_all[0]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
 ###################################################################################
-nopts=[0.000001, 0.000005,0.00001, 0.0001,0.001,0.01, 0.05, 0.1]
+nopts=[0.000001, 0.000005,0.00001, 0.0001,0.001,0.01, 0.05,0.075, 0.1,0.15]
 flag=1
 if flag==0:
     if dname=='adult':
@@ -113,7 +113,7 @@ for nprots in [1,2]:
     glvq_copy.fit(zXtrain, Ytrain)
   #  glvq.normalize_variables(glvq.prototypes_)
   #  glvq_copy.normalize_variables(glvq_copy.prototypes_)
-    training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain)}
+    training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain),  'normalization':'un-log'}
     ########################################################################################
     dist_func=sklvq.distances.SquaredEuclidean()
     rel_distances=dist_func(zXtrain, glvq)
@@ -239,15 +239,13 @@ for nprots in [1,2]:
         unlearned_n[cint]={'n':n, 'models': copy.copy(unlearned_model), 'unlearn_indices': unlearn_indices ,
                           'model_prots':unlearned_model.prototypes_.copy()}
         del unlearned_model, unlearn_indices, glvq_partial1, relearn_indices, relearn_labs, zXretrain
-        if (cint>0) & (nprots==1): #'dev_auc_M1M2'
+        if (cint>0) & (nprots==1) : #'dev_auc_M1M2'
             compare_df=pd.DataFrame.from_dict(data=compare_dict, orient='index').T
             cint+=1
         else:
             temp=pd.DataFrame.from_dict(data=compare_dict, orient='index').T
             compare_df=pd.concat([compare_df, temp])
             cint+=1
-       # if (cint>0) & (nprots==1):     
-    #        print(tab_filename)
         if cint>0:
             tab_filename=resultspath+'%s/%s_outlier_unlearn_swish_%s_all.csv'%(dname, dname,solver_type)
             compare_df.to_csv(tab_filename, index=False, sep='\t')      

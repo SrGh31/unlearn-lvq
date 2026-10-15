@@ -28,6 +28,8 @@ def import_model_utils(dname:str,model_dict:dict):
     ppc, exp_type=model_dict['ppc'], model_dict['exp_type']
     if exp_type=='random_enforced':
         picklefilename='%s%s/%s_%s_swish_%s_nprot%d.pkl'%(modelpath, dname, dname, exp_type, solver_type, ppc)
+    elif exp_type=='random_stable_enf':
+        picklefilename='%s%s/%s_%s_swish_%s_nprot%d.pkl'%(modelpath, dname, dname, exp_type, solver_type, ppc)
     elif exp_type=='outlier':
         picklefilename='%s%s/%s_outlier_swish_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, ppc)
     else:
@@ -43,9 +45,9 @@ def import_model_utils(dname:str,model_dict:dict):
     M1, M2=retrained_all[nopts]['models'][iter]['model'], unlearned_all[nopts]['models'][iter]['model']
     unlearn_indices=unlearned_all[nopts]['models'][iter]['unlearn_indices']
     relearn_indices=retrained_all[nopts]['models'][iter]['retrain_indices']
-    forget_retained={'unlearned':unlearn_indices, 'M0':M0, 'M1':M2, 'M2':M2,'n_unlearned':n,
+    forget_retained={'unlearned':unlearn_indices, 'M0':M0, 'M1':M1, 'M2':M2,'n_unlearned':n,
                     'retained':relearn_indices}
-    if model_dict['exp_type']=='random_enforced':
+    if (model_dict['exp_type']=='random_enforced')|(model_dict['exp_type']=='random_stable_enf'):
         enforced_indices=unlearned_all[nopts]['models'][iter]['enforced_indices']
         forget_retained['enforced']=enforced_indices
     return forget_retained
@@ -68,7 +70,7 @@ def import_forget_retained_sets(dname:str, model_dict):
         enforced_indices=forget_retained['enforced']
         zXenforced, Yenforced=zXtrain.iloc[enforced_all], Ytrain[enforced_indices]
         retain_forget_data['enforced']=zXenforced
-        etain_forget_labels['enforced']=Yenforced
+        retain_forget_labels['enforced']=Yenforced
     return retain_forget_data, retain_forget_label
   #  print('Class distribution in the forget set: ', Counter(Yunlearn))
         

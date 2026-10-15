@@ -20,7 +20,6 @@ code_path='/'.join(parts)+'/scripts/'
 sys.path.append(code_path)
 
 
-#normalization of original data
 def dataset_health(dname):
     trainset, testset=pd.read_csv(datapath+'%s/%s_trainset.csv'%(dname, dname)), pd.read_csv(datapath+'%s/%s_testset.csv'%(dname,dname))
    # Xtrain=Xtrain.astype(float)#[Xtrain.columns[Xtrain.std()>0.05]].copy()
