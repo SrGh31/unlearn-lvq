@@ -137,7 +137,6 @@ def update_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, data_dict: dict, la
     We do not know yet whether unlearning from a model trained via a stochastic gradient descent or mini batch gradient descent would 
     work following the same scheme as ordering of samples play a crucial role in these. 
     """
-    ztol=10*(-4)
     if model.solver_type=='wgd':
         k=model.get_params()['solver_params']['k']
         max_runs=model.get_params()['solver_params']['max_runs']
@@ -166,14 +165,14 @@ def update_sample_effect_glvq(model:sklvq.models._glvq.GLVQ, data_dict: dict, la
                 training_info['class_weight'][prot_lab]=cw_new.copy()
                 init_cumul_corr=prot_init_correction(prot_lab, training_info, label_dict, data_dict)
                 prot_init_corr=np.reshape((prot*initial_cw-init_cumul_corr)/cw_new, (1,model.prototypes_.shape[1]))
-                updated_prots[nprot]=np.reshape(prot_init_corr+step_size*((unlearn_get_grad_same+unlearn_get_grad_diff)),
-                                        -(enforce_get_grad_same+enforce_get_grad_diff)), 
+                updated_prots[nprot]=np.reshape(prot_init_corr+step_size*(
+                    (unlearn_get_grad_same+unlearn_get_grad_diff)-(enforce_get_grad_same+enforce_get_grad_diff)), 
                                             (1,model.prototypes_.shape[1]))
                 del prot_init_corr,cw_new, initial_cw
             else:    
-                updated_prots[nprot]=np.reshape(updated_prots[nprot]+step_size*((unlearn_get_grad_same+unlearn_get_grad_diff)
-                                        -(enforce_get_grad_same+enforce_get_grad_diff)), (1,model.prototypes_.shape[1]))
-           # updated_prots[nprot]=np.reshape(model.prototypes_[nprot].copy(), (1,model.prototypes_.shape[1]))
+                updated_prots[nprot]=np.reshape(updated_prots[nprot]+step_size*(
+                    (unlearn_get_grad_same+unlearn_get_grad_diff)-(enforce_get_grad_same+enforce_get_grad_diff)),
+                                                (1,model.prototypes_.shape[1]))
             del prot, prot_lab, unlearn_get_grad_diff, unlearn_get_grad_same, enforce_get_grad_diff, enforce_get_grad_same
         model.set_prototypes(updated_prots)
         step_size = step_size / (1 + iter/ max_runs)        
