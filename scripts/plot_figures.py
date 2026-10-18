@@ -116,7 +116,12 @@ def plot_model_speedup(exp_type:str,speedup_ylims:dict, fig_dict:dict, row_col_m
         dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes','criteo']
         figS, axS= plt.subplots(nrows=2, ncols=int(len(dname_all)/2),figsize=(5,3), dpi=100, layout="constrained")
     for dname in dname_all:
-        metapath='%s%s/%s_random_unlearn_swish_%s_all1.csv'%(srcpath,dname, dname,solver_type)
+        if exp_type=='random_enforced':
+            metapath='%s%s/%s_random_unlearn_swish_%s_all1.csv'%(srcpath,dname, dname,solver_type)
+        elif exp_type=='random_stable_enf':
+            metapath='%s%s/%s_random_stable_enf_unlearn_swish_%s.csv'%(srcpath, dname, dname,solver_type)
+        else:
+            metapath='%s%s/%s_random_unlearn_swish_%s_all1.csv'%(srcpath,dname, dname,solver_type)
         res_df=pd.read_csv(metapath, sep='\t')
         res_df.rename(columns={'n_unlearn':'n_unlearned'}, inplace=True)
         combined=eval_perf_metrics(res_df)

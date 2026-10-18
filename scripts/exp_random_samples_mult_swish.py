@@ -29,8 +29,9 @@ from utils import samples_unlearn_random
 from experiment_utils import dataset_health
 #################  0 ######### 1 ######### 2 ######## 3 ###### 4 ########## 5
 dname_all=['breastcancer', 'surgical', 'banking', 'adult', 'diabetes','criteo']
-dname=dname_all[3]
+dname=dname_all[2]
 Xtrain, Ytrain, Xtest, Ytest, features=dataset_health(dname)
+print('Data imported')
 #zXtrain, zXtest=data_normalization(Xtrain, Xtest)
 zXtrain, zXtest=data_norm_log(Xtrain, Xtest)
 ###########################################
@@ -41,7 +42,7 @@ beta_dname={'breastcancer':[5,5], 'surgical': [15,5], 'banking': [18,20], 'adult
 import logging
 logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('basic_logger')
-logfilename='%s/logs/info_random_%s_id.log'%(common_path, dname)
+logfilename='%s/logs/info_random_%s_swish.log'%(common_path, dname)
 print(logfilename)
 logging.basicConfig(level=logging.INFO,
     filename=logfilename,# format=fmt,
@@ -74,13 +75,13 @@ if flag==0:
             ]
         zXtrain,zXtest=zXtrain[features].copy(), zXtest[features].copy()
     elif dname=='breastcancer':
-        nopts=[1,5,20,30,50,100]
+        nopts=[2,5,20,30,50,100]
     elif dname=='criteo':
         nopts=np.ceil(np.array([0.0001, 0.01, 0.1, 0.2])*len(Ytrain)).astype(np.int32)
     else:
         print('No feature preset reqd')
 if dname=='breastcancer':
-    nopts=[1,5,20,30,50,100]
+    nopts=[2,5,20,30,50,100]
 elif dname=='criteo':
     nopts=np.ceil(np.array([0.0001, 0.01, 0.1])*len(Ytrain)).astype(np.int32)
 else:
@@ -94,7 +95,7 @@ if dname=='criteo':
 else:
     iterations=[0,1,2,3,4]
     max_runs, step_size=5,np.array([0.05])
-dist_name, activation_type="squared-euclidean", "identity"
+dist_name, activation_type="squared-euclidean", "swish",# "identity"
 solver_type, solver_params="sgd", {"max_runs": max_runs, "step_size": step_size, # "k": 3,
 }
 print(dname, ' random ', solver_type)
@@ -104,23 +105,24 @@ for nprots in [1,2]:
     while flag==1:
         if solver_type in ['sgd', 'wgd']:
             glvq=model = GLVQ(
-                distance_type=dist_name, activation_type=activation_type, # activation_params=activation_params,
+                distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,
                 prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type, solver_params=solver_params)
-            if dname=='criteo':
-                glvq_copy=copy.deepcopy(glvq)
-            else:
-                glvq_copy=GLVQ(
-                    distance_type=dist_name, activation_type=activation_type,  #activation_params=activation_params,
-                    prototype_n_per_class=nprots_per_class,
-                    solver_type=solver_type, solver_params=solver_params)
+            
+#            if dname=='criteo':
+#                glvq_copy=copy.deepcopy(glvq)
+#            else:
+#                glvq_copy=GLVQ(
+#                    distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
+#                    prototype_n_per_class=nprots_per_class,
+#                    solver_type=solver_type, solver_params=solver_params)
         else:
             glvq= GLVQ(
-                distance_type=dist_name, activation_type=activation_type, # activation_params=activation_params,
+                distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
                 prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type)
             glvq_copy=GLVQ(
-                distance_type=dist_name, activation_type=activation_type, # activation_params=activation_params,
+                distance_type=dist_name, activation_type=activation_type,  activation_params=activation_params,
                 prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type)
         glvq.fit(zXtrain, Ytrain)
@@ -130,9 +132,9 @@ for nprots in [1,2]:
         else:
             flag=0
         print('Acc=', acc)
-    #glvq_copy=copy.copy(glvq)
-    glvq_copy.fit(zXtrain, Ytrain)
-    training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain),'normalization':'log'}
+    #glvq_copy=copy.deepcopy(glvq)
+   # glvq_copy.fit(zXtrain, Ytrain)
+    training_info={'setsize':zXtrain.shape[0], 'class_weight':Counter(Ytrain), 'normalization':'un-log'}
     ########################################################################################
     # Unlearning parameters to compare
     # * number of random samples to unlearn n=[1,5,20,30,50]
@@ -141,10 +143,10 @@ for nprots in [1,2]:
     for n in nopts:
        # logging.info('cint=%d, nprots=%d, n=%d'%(cint, nprots, n))
         glvq_copy=copy.deepcopy(glvq)
-        if cint==0:
-            glvq_copy.secure_prototypes_=glvq.prototypes_.copy()
-        else:
-            glvq_copy.prototypes_=glvq.prototypes_.copy()
+        #if cint==0:
+        #    glvq_copy.secure_prototypes_=glvq.prototypes_.copy()
+        #else:
+        #    glvq_copy.prototypes_=glvq.prototypes_.copy()
         dev00, max_dev_indx0=compare_fidelity_glvq(glvq, glvq_copy)
         if dev00>=0.000001:
             logging.info('WARNING: Non-zero deviation before unlearning started: dev=%0.03f'%dev00)
@@ -153,20 +155,23 @@ for nprots in [1,2]:
         retrained_iter, unlearned_iter={},{}
         for iter in iterations:
             random_learn_set=samples_unlearn_random(Xtrain, Ytrain, n,0) 
+            #if iter>0:
             glvq_copy=copy.deepcopy(glvq) #.prototypes_.copy()
+            #glvq_copy.prototypes_=glvq.prototypes_.copy()
             unlearn_indices,relearn_indices=random_learn_set['unlearn_indices'], random_learn_set['relearn_indices']
             unlearn_samples,relearn_samples=random_learn_set['unlearn_samples'], random_learn_set['relearn_samples']
             unlearn_labs,relearn_labs=random_learn_set['unlearn_labs'], random_learn_set['relearn_labs']
             zXretrain=zXtrain.iloc[relearn_indices].copy()#, Xtest)
+           # print('Acc=', balanced_accuracy_score(Ytrain[relearn_indices], glvq.predict(zXtrain.iloc[relearn_indices])))
             #Retraining 
             st=time.time()
             ####################################
             if solver_type in ['sgd', 'wgd']:
-                glvq_partial1=GLVQ(distance_type=dist_name, activation_type=activation_type, #activation_params=activation_params,
+                glvq_partial1=GLVQ(distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,
                                    prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type, solver_params=solver_params)
             else:
-                glvq_partial1=GLVQ(distance_type=dist_name, activation_type=activation_type, #activation_params=activation_params,
+                glvq_partial1=GLVQ(distance_type=dist_name, activation_type=activation_type, activation_params=activation_params,
                                    prototype_n_per_class=nprots_per_class,
                 solver_type=solver_type)
             glvq_partial1.fit(zXretrain, relearn_labs)
@@ -205,14 +210,16 @@ for nprots in [1,2]:
             unlearned_iter[iter]={'model': copy.copy(unlearned_model), 'unlearn_indices': unlearn_indices, 'et_unlearn':elapsed_untrain,
                                  'model_prots':unlearned_model.prototypes_.copy()}
             #########################################
-            print('%s: identity, n=%d/%d, iter=%d, Elapsed time diff=retrain (%3f) -unlearn (%3f)'%(dname, n, 
-                                                                                    nopts[-1],iter, elapsed_retrain, elapsed_untrain))
+            logging.info('n=%d/%d, iter=%d, Elapsed time diff=retrain (%3f) -unlearn (%3f)'%(n, nopts[-1],iter, elapsed_retrain, elapsed_untrain))
             #########################################
             dev02, max_dev_indx02=compare_fidelity_glvq(glvq, unlearned_model)
        #     print('After unlearning: Deviation between original and unlearned models:', dev02)
             dev12, max_dev_indx12=compare_fidelity_glvq(glvq_partial1,unlearned_model)
         #    print('After unlearning: Deviation between retrained and unlearned models:', dev12)
-            print('n=%d, Elapsed time unlearn diff=%3f-%3f'%(n, elapsed_retrain,elapsed_untrain))
+         #   logging.info('n=%d, Elapsed time unlearn diff=%3f-%3f'%(n, elapsed_retrain,elapsed_untrain))
+           #######################################################################################
+          #  cratio_uo_ur=dev02/dev12
+           # print('Dev(prots from original and unlearned models)/Dev(prots from retrained and unlearned models)=%0.03f'%cratio_uo_ur)
             ###############################################################################
             # Compare original (0) vs retrained (1) vs unlearned (2)
             data_dict_train={'zX_M1':zXtrain.iloc[relearn_indices]}#zXretrain
@@ -259,14 +266,12 @@ for nprots in [1,2]:
             else:
                 temp= pd.DataFrame.from_dict(data=compare_dict, orient='index').T
                 compare_df=pd.concat([compare_df, temp])
-            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_id_%s_all.csv'%(dname, dname,solver_type), index=False, sep='\t')
-#compare_df.to_csv(resultspath+'%s/%s_random_unlearn_%s_nprot%d.csv'%(dname, dname,solver_type, nprots_per_class), index=False, sep='\t')
+            compare_df.to_csv(resultspath+'%s/%s_random_unlearn_swish_%s_all_lr.csv'%(dname, dname,solver_type), index=False, sep='\t')
         retrained_n[cint]={'n':n, 'models':retrained_iter}
         unlearned_n[cint]={'n':n, 'models': unlearned_iter}
         cint+=1     
-   # del compare_df
     model_sets={'original': glvq, 'retrained': retrained_n, 'unlearned': unlearned_n}
-    picklefilename='%s%s/%s_random_id_%s_nprot%d.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
+    picklefilename='%s%s/%s_random_swish_%s_nprot%d_lr.pkl'%(modelpath, dname, dname, solver_type, nprots_per_class)
     print('Print picklefile path\n', picklefilename)
     with open(picklefilename, 'wb') as file:
         pickle.dump(model_sets, file)

@@ -90,7 +90,7 @@ else:
 # Training original model
 if dname=='criteo':
     iterations=[0,1,2]
-    max_runs, step_size=2, np.array([0.075])
+    max_runs, step_size=2, np.array([0.05])
 else:
     iterations=[0,1,2,3,4]
     max_runs, step_size=5,np.array([0.05])
@@ -197,7 +197,6 @@ for nprots in [1,2]:
             # Unlearning of sample effects
             st_un=time.time()
             adjusted_model,cont_stats_change=update_sample_effect_glvq(glvq_copy, adj_data_dict, adj_label_dict, 
-                                                                       #  adapt_action, 
                                                                        training_info)       
             elapsed_untrain=(time.time()-st_un)/60
             #########################################
